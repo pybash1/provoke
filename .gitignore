@@ -1,0 +1,9 @@
+index.db
+models/
+data/
+__pycache__/
+.venv/
+venv/
+crawl_urls*.txt
+rejected_url*.log
+.DS_Store

@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inked Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #0a0a0c;
+            --surface: #121217;
+            --primary: #6366f1;
+            --secondary: #ec4899;
+            --text: #e2e8f0;
+            --text-dim: #94a3b8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --glass: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+        }
+
+        .nav-link {
+            font-weight: 600;
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: color 0.2s;
+            font-size: 0.875rem;
+        }
+
+        .nav-link:hover {
+            color: var(--text);
+        }
+
+        .nav-link.active {
+            color: var(--primary);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 3rem;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 1.25rem;
+            border-radius: 1rem;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease, border-color 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--primary);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .stat-sub {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            margin-top: 0.25rem;
+        }
+
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .grid-layout-equal {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 1.25rem;
+            padding: 1.5rem;
+            height: 100%;
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-dim);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+        }
+
+        td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tier-badge {
+            padding: 0.2rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .tier-high {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+
+        .tier-medium {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+
+        .tier-low {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+        }
+
+        .tier-rejected {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+
+        .progress-bar-container {
+            background: rgba(255, 255, 255, 0.05);
+            height: 8px;
+            border-radius: 4px;
+            margin-top: 0.5rem;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            background: var(--primary);
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+
+        .crawl-box {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .crawl-box input,
+        .crawl-box select {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            padding: 0.6rem 1rem;
+            border-radius: 0.6rem;
+            color: var(--text);
+            font-family: inherit;
+            outline: none;
+        }
+
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.6rem 1.25rem;
+            border-radius: 0.6rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            filter: brightness(1.1);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #crawl-logs {
+            background: #000;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            max-height: 200px;
+            overflow-y: auto;
+            color: #31ed31;
+            border: 1px solid var(--border);
+            margin-top: 1rem;
+        }
+
+        .delete-table-btn {
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 0.25rem;
+            transition: all 0.2s;
+        }
+
+        .delete-table-btn:hover {
+            opacity: 1;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        @media (max-width: 1024px) {
+
+            .grid-layout,
+            .grid-layout-equal {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Inked Admin</h1>
+            <nav class="nav-links">
+                <a href="/" class="nav-link">← Search</a>
+                <a href="/domains" class="nav-link">Domain Explorer</a>
+                <a href="/admin/lists" class="nav-link">Manage Lists</a>
+                <a href="/admin/label" class="nav-link">Data Labeler</a>
+            </nav>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Accepted Pages</div>
+                <div id="total-pages" class="stat-value">{{ total_pages }}</div>
+                <div class="stat-sub">Crawl Efficiency: <span id="efficiency">{{ efficiency }}</span>%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Rejected Pages</div>
+                <div id="total-rejected" class="stat-value">{{ total_rejected }}</div>
+                <div class="stat-sub">Avg Rej. Words: <span id="avg-rejected-wc">{{ avg_rejected_wc }}</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Lists Managed</div>
+                <div class="stat-value" style="font-size: 1.25rem; margin-top: 0.5rem;">
+                    🚫 {{ total_blacklisted }} &nbsp; ✅ {{ total_whitelisted }}
+                </div>
+                <div class="stat-sub"><a href="/admin/lists"
+                        style="color: var(--primary); text-decoration: none;">Manage Lists →</a></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Labeling Progress</div>
+                <div id="labeling-progress-text" class="stat-value">{{ labeling_progress }}%</div>
+                <div class="progress-bar-container">
+                    <div id="labeling-progress-bar" class="progress-bar" style="width: {{ labeling_progress }}%;"></div>
+                </div>
+                <div class="stat-sub"><span id="done-labels">{{ done_labels }}</span> done, <span id="pending-labels">{{
+                        pending_labels }}</span> pending</div>
+            </div>
+        </div>
+
+        <h3
+            style="margin-bottom: 1.25rem; font-size: 0.9rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em;">
+            Accepted Content Quality</h3>
+        <div class="stats-grid" style="margin-bottom: 3rem;">
+            <div class="stat-card" style="border-left: 3px solid var(--success);">
+                <div class="stat-label">Avg Word Count</div>
+                <div id="avg-wc" class="stat-value">{{ avg_wc }}</div>
+                <div class="stat-sub">Accepted Pages Only</div>
+            </div>
+            <div class="stat-card" style="border-left: 3px solid var(--primary);">
+                <div class="stat-label">Avg Readability</div>
+                <div id="avg-readability" class="stat-value">{{ avg_readability }}</div>
+                <div class="stat-sub">Higher is Easier</div>
+            </div>
+            <div class="stat-card" style="border-left: 3px solid var(--warning);">
+                <div class="stat-label">Avg Text/HTML</div>
+                <div id="avg-tr" class="stat-value">{{ avg_tr }}</div>
+                <div class="stat-sub">Content Density</div>
+            </div>
+            <div class="stat-card" style="border-left: 3px solid var(--primary);">
+                <div class="stat-label">Avg Unified Score</div>
+                <div id="avg-unified" class="stat-value" style="color: var(--success);">{{ avg_unified }}</div>
+                <div class="stat-sub">Overall Quality</div>
+            </div>
+        </div>
+
+        <div class="grid-layout">
+            <section>
+                <h2>🚀 Actions & Active Tracking</h2>
+                <div class="crawl-box">
+                    <input type="text" id="crawl-url" placeholder="https://example.com" style="flex: 1;">
+                    <select id="crawl-depth">
+                        <option value="1">Depth 1</option>
+                        <option value="2">Depth 2</option>
+                        <option value="3">Depth 3</option>
+                    </select>
+                    <button onclick="startCrawl(event)" class="btn">Crawl</button>
+                </div>
+                <div id="crawl-logs" style="display: none;"></div>
+
+                <div style="margin-top: 2rem;">
+                    <h3>Quality Breakdown</h3>
+                    <div class="chart-container" style="height: 200px;">
+                        <canvas id="tierChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2>🔝 Top Domains</h2>
+                <div class="chart-container" style="height: 380px;">
+                    <canvas id="domainChart"></canvas>
+                </div>
+            </section>
+        </div>
+
+        <div class="grid-layout-equal">
+            <section>
+                <h2>📊 Rejection Breakdown</h2>
+                <div class="chart-container">
+                    <canvas id="rejectionChart"></canvas>
+                </div>
+            </section>
+
+            <section>
+                <h2>🧪 Quality Tester (Dry Run)</h2>
+                <p style="color: var(--text-dim); font-size: 0.8rem; margin-bottom: 1rem;">
+                    Test how the quality model would classify a URL without indexing it.
+                </p>
+                <div class="crawl-box">
+                    <input type="text" id="test-url" placeholder="https://example.com/blog" style="flex: 1;">
+                    <button onclick="testURL()" class="btn" id="test-btn">Test</button>
+                </div>
+                <div id="test-result"
+                    style="display: none; margin-top: 1rem; padding: 1rem; background: var(--glass); border: 1px solid var(--border); border-radius: 0.75rem; max-height: 300px; overflow-y: auto;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+                        <div style="max-width: 70%;">
+                            <h4 id="test-title"
+                                style="font-size: 0.95rem; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            </h4>
+                            <div id="test-final-url"
+                                style="font-size: 0.65rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis;">
+                            </div>
+                        </div>
+                        <div id="test-tier-badge" class="tier-badge"></div>
+                    </div>
+
+                    <div
+                        style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 1rem;">
+                        <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 0.4rem;">
+                            <div style="font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase;">Score
+                            </div>
+                            <div id="test-score" style="font-size: 1.1rem; font-weight: 700; color: var(--primary);">
+                            </div>
+                        </div>
+                        <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 0.4rem;">
+                            <div style="font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase;">Words
+                            </div>
+                            <div id="test-wc" style="font-size: 1.1rem; font-weight: 700;"></div>
+                        </div>
+                    </div>
+
+                    <div id="test-rejection-box" style="display: none; margin-bottom: 1rem;">
+                        <h5
+                            style="color: var(--danger); font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.25rem;">
+                            Rejection:</h5>
+                        <ul id="test-reasons" style="list-style: none; font-size: 0.75rem; color: var(--text);"></ul>
+                    </div>
+
+                    <div id="test-all-scores"
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 0.4rem; border-top: 1px solid var(--border); padding-top: 0.75rem;">
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <section style="margin-bottom: 3rem;">
+            <h2>📝 Recent Activity</h2>
+            <div class="table-container">
+                <table id="recent-pages-table">
+                    <thead>
+                        <tr>
+                            <th>Page Info</th>
+                            <th>Unified Score</th>
+                            <th>Quality Tier</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recent-pages-body">
+                        {% for page in recent_pages %}
+                        <tr>
+                            <td>
+                                <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 0.2rem;">
+                                    <a href="{{ page.url }}" target="_blank"
+                                        style="color: inherit; text-decoration: none;">{{ page.title or 'Untitled'
+                                        }}</a>
+                                </div>
+                                <div
+                                    style="font-size: 0.65rem; color: var(--text-dim); max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                    {{ page.url }}
+                                </div>
+                            </td>
+                            <td
+                                style="font-family: 'JetBrains Mono'; font-weight: 700; font-size: 1rem; color: {% if page.score | float >= 75 %}var(--success){% elif page.score | float >= 55 %}var(--warning){% else %}var(--danger){% endif %};">
+                                {{ page.score }}</td>
+                            <td><span class="tier-badge tier-{{ page.tier }}">{{ page.tier }}</span></td>
+                            <td>
+                                <form action="/admin/delete_page" method="POST"
+                                    onsubmit="return confirm('Delete this page?')">
+                                    <input type="hidden" name="url" value="{{ page.url }}">
+                                    <button type="submit" class="delete-table-btn" title="Delete Page">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        const colors = {
+            primary: '#6366f1',
+            secondary: '#ec4899',
+            success: '#10b981',
+            warning: '#f59e0b',
+            danger: '#ef4444',
+            surface: '#1e293b',
+            chart: [
+                'rgba(99, 102, 241, 0.7)', 'rgba(236, 72, 153, 0.7)', 'rgba(16, 185, 129, 0.7)',
+                'rgba(245, 158, 11, 0.7)', 'rgba(239, 68, 68, 0.7)', 'rgba(139, 92, 246, 0.7)'
+            ]
+        };
+
+        const rejectionCtx = document.getElementById('rejectionChart').getContext('2d');
+        const rejectionChart = new Chart(rejectionCtx, {
+            type: 'bar',
+            data: {
+                labels: {{ rejection_labels | tojson }},
+        datasets: [{
+            data: {{ rejection_values | tojson }},
+            backgroundColor: colors.chart,
+            borderRadius: 4
+                }]
+            },
+        options: {
+            indexAxis: 'y',
+                responsive: true,
+                    maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                y: { grid: { display: false }, ticks: { color: '#e2e8f0' } }
+            }
+        }
+        });
+
+        const tierCtx = document.getElementById('tierChart').getContext('2d');
+        const tierChart = new Chart(tierCtx, {
+            type: 'doughnut',
+            data: {
+                labels: {{ tier_labels | tojson }},
+        datasets: [{
+            data: {{ tier_values | tojson }},
+            backgroundColor: [colors.success, colors.warning, colors.danger],
+            borderWidth: 0,
+            cutout: '70%'
+                }]
+            },
+        options: {
+            responsive: true,
+                maintainAspectRatio: false,
+                    plugins: {
+                legend: { position: 'right', labels: { color: '#e2e8f0', usePointStyle: true } }
+            }
+        }
+        });
+
+        const domainCtx = document.getElementById('domainChart').getContext('2d');
+        const domainChart = new Chart(domainCtx, {
+            type: 'bar',
+            data: {
+                labels: {{ top_domains_labels | tojson }},
+        datasets: [{
+            data: {{ top_domains_values | tojson }},
+            backgroundColor: colors.primary + '88',
+            borderColor: colors.primary,
+            borderWidth: 1,
+            borderRadius: 4
+                }]
+            },
+        options: {
+            indexAxis: 'y',
+                responsive: true,
+                    maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                y: { grid: { display: false }, ticks: { color: '#e2e8f0' } }
+            }
+        }
+        });
+
+        async function updateStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                document.getElementById('total-pages').innerText = data.total_pages;
+                document.getElementById('total-rejected').innerText = data.total_rejected;
+                document.getElementById('efficiency').innerText = data.efficiency;
+                document.getElementById('avg-rejected-wc').innerText = data.avg_rejected_wc;
+                document.getElementById('labeling-progress-text').innerText = data.labeling_progress + '%';
+                document.getElementById('labeling-progress-bar').style.width = data.labeling_progress + '%';
+                document.getElementById('done-labels').innerText = data.done_labels;
+                document.getElementById('pending-labels').innerText = data.pending_labels;
+                document.getElementById('avg-wc').innerText = data.avg_wc;
+                document.getElementById('avg-readability').innerText = data.avg_readability;
+                document.getElementById('avg-tr').innerText = data.avg_tr;
+                document.getElementById('avg-unified').innerText = data.avg_unified;
+
+                rejectionChart.data.labels = data.rejection_labels;
+                rejectionChart.data.datasets[0].data = data.rejection_values;
+                rejectionChart.update();
+                tierChart.data.datasets[0].data = data.tier_values;
+                tierChart.update();
+                domainChart.data.labels = data.top_domains_labels;
+                domainChart.data.datasets[0].data = data.top_domains_values;
+                domainChart.update();
+            } catch (error) { console.error('Error:', error); }
+        }
+
+        async function testURL() {
+            const url = document.getElementById('test-url').value.trim();
+            const btn = document.getElementById('test-btn');
+            const resultBox = document.getElementById('test-result');
+            if (!url) return alert('Enter a URL to test');
+            btn.disabled = true;
+            btn.innerText = 'Testing...';
+            try {
+                const response = await fetch(`/admin/test_url?url=${encodeURIComponent(url)}`);
+                const data = await response.json();
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                resultBox.style.display = 'block';
+                document.getElementById('test-title').innerText = data.title || 'Untitled';
+                document.getElementById('test-final-url').innerText = data.url;
+                const tierBadge = document.getElementById('test-tier-badge');
+                tierBadge.innerText = data.quality_tier;
+                tierBadge.className = `tier-badge tier-${data.quality_tier}`;
+                const scoreEl = document.getElementById('test-score');
+                const score = data.scores.unified_score || 0;
+                scoreEl.innerText = score;
+                if (score >= 80) scoreEl.style.color = 'var(--success)';
+                else if (score >= 40) scoreEl.style.color = 'var(--warning)';
+                else scoreEl.style.color = 'var(--danger)';
+                document.getElementById('test-wc').innerText = data.scores.word_count || 0;
+                const rejectionBox = document.getElementById('test-rejection-box');
+                const reasonsList = document.getElementById('test-reasons');
+                if (data.rejection_reasons && data.rejection_reasons.length > 0) {
+                    rejectionBox.style.display = 'block';
+                    reasonsList.innerHTML = data.rejection_reasons.map(r => `<li style="margin-bottom: 0.2rem;">• ${r}</li>`).join('');
+                } else {
+                    rejectionBox.style.display = 'none';
+                }
+                const allScoresDiv = document.getElementById('test-all-scores');
+                allScoresDiv.innerHTML = Object.entries(data.scores)
+                    .filter(([k]) => !['unified_score', 'word_count'].includes(k))
+                    .map(([k, v]) => `<div style="font-size: 0.65rem; color: var(--text-dim);"><span style="color:rgba(255,255,255,0.2); font-weight: 600;">${k}:</span><br>${typeof v === 'number' ? v.toFixed(2) : v}</div>`)
+                    .join('');
+            } catch (e) {
+                console.error(e);
+                alert('Connection error');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Test';
+            }
+        }
+
+        async function startCrawl() {
+            const url = document.getElementById('crawl-url').value.trim();
+            const depth = document.getElementById('crawl-depth').value;
+            const logsDiv = document.getElementById('crawl-logs');
+            const btn = event.target;
+
+            if (!url) return alert('Enter URL');
+
+            btn.disabled = true;
+            logsDiv.style.display = 'block';
+            logsDiv.innerHTML = '<div style="color:var(--text-dim)">Initializing crawl process...</div>';
+
+            try {
+                const response = await fetch(`/admin/crawl?url=${encodeURIComponent(url)}&depth=${depth}`);
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let partial = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = (partial + chunk).split('\n');
+                    partial = lines.pop(); // Last one might be partial
+
+                    lines.forEach(line => {
+                        if (!line.trim()) return;
+                        const div = document.createElement('div');
+                        div.style.marginBottom = '2px';
+
+                        // Color coding
+                        if (line.includes('Accepted')) {
+                            div.style.color = 'var(--success)';
+                            div.innerText = '✅ ' + line;
+                        } else if (line.includes('Rejected')) {
+                            div.style.color = 'var(--danger)';
+                            div.innerText = '❌ ' + line;
+                        } else if (line.includes('!!!')) {
+                            div.style.color = 'var(--warning)';
+                            div.style.fontWeight = '700';
+                            div.innerText = '⚠️ ' + line;
+                        } else {
+                            div.innerText = line;
+                        }
+
+                        logsDiv.appendChild(div);
+                        logsDiv.scrollTop = logsDiv.scrollHeight;
+
+                        if (line.includes('[CRAWL COMPLETE]')) {
+                            updateStats();
+                            setTimeout(() => {
+                                logsDiv.style.display = 'none';
+                                logsDiv.innerHTML = '';
+                            }, 3000);
+                        }
+                    });
+                }
+            } catch (e) {
+                logsDiv.innerHTML += `<div style="color:var(--danger); margin-top:10px;">Connection Error: ${e}</div>`;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        setInterval(updateStats, 15000);
+    </script>
+</body>
+
+</html>

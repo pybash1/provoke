@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inked Search</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0a0c;
+            --surface: #121217;
+            --primary: #6366f1;
+            --secondary: #ec4899;
+            --text: #e2e8f0;
+            --text-dim: #94a3b8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --glass: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .admin-link {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .admin-link:hover {
+            color: var(--primary);
+        }
+
+        .search-container {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 2rem;
+            border-radius: 1.25rem;
+            margin-bottom: 3rem;
+            box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.2);
+        }
+
+        .search-form {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .search-input {
+            flex: 1;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            padding: 1rem 1.25rem;
+            border-radius: 0.75rem;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .search-input::placeholder {
+            color: var(--text-dim);
+        }
+
+        .search-button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: filter 0.2s, transform 0.1s;
+        }
+
+        .search-button:hover {
+            filter: brightness(1.1);
+        }
+
+        .search-button:active {
+            transform: scale(0.98);
+        }
+
+        .results-header {
+            margin-bottom: 1.5rem;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        .results-header strong {
+            color: var(--text);
+            font-size: 1.1rem;
+        }
+
+        .result-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 1.5rem;
+            border-radius: 1rem;
+            margin-bottom: 1rem;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .result-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary);
+        }
+
+        .result-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .result-title a {
+            color: var(--text);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .result-title a:hover {
+            color: var(--primary);
+        }
+
+        .result-snippet {
+            color: var(--text-dim);
+            margin-bottom: 0.75rem;
+            line-height: 1.6;
+        }
+
+        .result-meta {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+            font-size: 0.875rem;
+        }
+
+        .result-score {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-dim);
+        }
+
+        .result-url {
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: color 0.2s;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 400px;
+        }
+
+        .result-url:hover {
+            color: var(--primary);
+        }
+
+        .tier-badge {
+            padding: 0.25rem 0.625rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .tier-high {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+
+        .tier-medium {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary);
+        }
+
+        .tier-low {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+        }
+
+        .delete-result-btn {
+            background: none;
+            border: none;
+            color: var(--danger);
+            font-size: 1.125rem;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            line-height: 1;
+            border-radius: 0.25rem;
+            transition: all 0.2s;
+            opacity: 0.3;
+        }
+
+        .delete-result-btn:hover {
+            opacity: 1;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--text-dim);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        footer {
+            margin-top: 4rem;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.875rem;
+        }
+
+        footer a {
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        footer a:hover {
+            color: var(--primary);
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .search-form {
+                flex-direction: column;
+            }
+
+            .search-button {
+                width: 100%;
+            }
+
+            .result-meta {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Inked</h1>
+            <a href="/admin" class="admin-link">Admin Dashboard →</a>
+        </header>
+
+        <div class="search-container">
+            <form class="search-form" action="/" method="GET">
+                <input type="text" name="q" value="{{ query }}" placeholder="Search the web..." class="search-input"
+                    autofocus>
+                <button type="submit" class="search-button">Search</button>
+            </form>
+        </div>
+
+        {% if query %}
+        <div class="results-header">
+            {% if results %}
+            Results for <strong>"{{ query }}"</strong>
+            {% else %}
+            No results found for <strong>"{{ query }}"</strong>
+            {% endif %}
+        </div>
+
+        {% if results %}
+        <div class="results-list">
+            {% for result in results %}
+            <div class="result-card">
+                <div class="result-title">
+                    <a href="{{ result.url }}" target="_blank">{{ result.title or 'Untitled' }}</a>
+                </div>
+                <div class="result-snippet">{{ result.snippet | safe }}</div>
+                <div class="result-meta">
+                    {% if result.tier %}
+                    <span class="tier-badge tier-{{ result.tier }}">{{ result.tier }}</span>
+                    {% endif %}
+                    <span class="result-score">Score: {{ result.score }}</span>
+                    <a href="{{ result.url }}" class="result-url" target="_blank">{{ result.url }}</a>
+                    <div style="flex: 1;"></div>
+                    <form action="/admin/delete_page" method="POST" style="display:inline;"
+                        onsubmit="return confirm('Delete this page from index?')">
+                        <input type="hidden" name="url" value="{{ result.url }}">
+                        <button type="submit" class="delete-result-btn" title="Delete result">×</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">🔍</div>
+            <p>No results found. Try different keywords.</p>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        <footer>
+            <p>Powered by <a href="https://github.com" target="_blank">Inked Search Engine</a></p>
+        </footer>
+    </div>
+</body>
+
+</html>
