@@ -101,14 +101,6 @@
                     <a href="{{ result.url }}"
                         class="text-text-dim hover:text-primary transition-colors truncate max-w-[400px] text-xs"
                         target="_blank">{{ result.url }}</a>
-                    <div class="flex-1"></div>
-                    <form action="/admin/delete_page" method="POST" class="inline"
-                        onsubmit="return confirm('Delete this page from index?')">
-                        <input type="hidden" name="url" value="{{ result.url }}">
-                        <button type="submit"
-                            class="text-danger opacity-30 hover:opacity-100 hover:bg-danger/10 px-2 py-1 transition-all"
-                            title="Delete result">×</button>
-                    </form>
                 </div>
             </div>
             {% endfor %}

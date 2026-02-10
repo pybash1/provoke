@@ -73,22 +73,26 @@ def get_admin_data():
     )
 
     recent_pages = []
-    for row in cursor.fetchall():
-        raw_score = row[3]
-        display_score = raw_score
-        try:
-            if isinstance(raw_score, str) and "{" in raw_score:
-                score_data = json.loads(raw_score)
-                display_score = score_data.get("unified_score", raw_score)
-        except:
-            pass
 
+    # Function to parse raw score
+    def parse_score(raw_score):
+        if isinstance(raw_score, str) and "{" in raw_score:
+            try:
+                score_data = json.loads(raw_score)
+                return score_data.get("unified_score", raw_score)
+            except:
+                return raw_score
+        return raw_score
+
+    # ... in recent_pages loop
+    recent_pages = []
+    for row in cursor.fetchall():
         recent_pages.append(
             {
                 "url": row[0],
                 "title": row[1],
                 "tier": row[2],
-                "score": display_score,
+                "score": parse_score(row[3]),
             }
         )
 
@@ -238,6 +242,17 @@ def get_domain_info(target_domain=None):
     cursor.execute("SELECT url, title, quality_tier, quality_score FROM pages")
     rows = cursor.fetchall()
 
+    def parse_score(raw_score):
+        if isinstance(raw_score, str) and "{" in raw_score:
+            try:
+                import json
+
+                score_data = json.loads(raw_score)
+                return score_data.get("unified_score", raw_score)
+            except:
+                return raw_score
+        return raw_score
+
     domains_map = {}
     for url, title, tier, score in rows:
         parsed = urlparse(url)
@@ -245,7 +260,7 @@ def get_domain_info(target_domain=None):
         if domain not in domains_map:
             domains_map[domain] = []
         domains_map[domain].append(
-            {"url": url, "title": title, "tier": tier, "score": score}
+            {"url": url, "title": title, "tier": tier, "score": parse_score(score)}
         )
 
     unique_domains = sorted(list(domains_map.keys()))

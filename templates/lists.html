@@ -43,8 +43,8 @@
             .section-card {
                 @apply bg-surface border border-border p-6 shadow-2xl;
             }
-            .list-item {
-                @apply flex justify-between items-center p-3 bg-white/[0.03] border border-border text-sm transition-all hover:border-primary/50;
+            .domain-entry-card {
+                @apply flex flex-row justify-between items-center p-3 bg-white/[0.03] border border-border text-sm transition-all hover:border-primary/50;
             }
             .input-field {
                 @apply bg-black/20 border border-border px-4 py-2 text-white font-mono outline-none focus:border-primary flex-1;
@@ -90,9 +90,9 @@
 
                 <div class="list-container space-y-2 max-h-[500px] overflow-y-auto pr-2">
                     {% for domain in blacklisted_domains %}
-                    <div class="list-item">
-                        <span class="truncate pr-4">{{ domain }}</span>
-                        <form action="/admin/blacklist/remove" method="POST" class="shrink-0">
+                    <div class="domain-entry-card gap-4">
+                        <span class="truncate min-w-0 flex-1">{{ domain }}</span>
+                        <form action="/admin/blacklist/remove" method="POST" class="shrink-0 m-0">
                             <input type="hidden" name="domain" value="{{ domain }}">
                             <button type="submit" class="btn-remove" title="Remove Domain">REMOVE</button>
                         </form>
@@ -119,9 +119,9 @@
 
                 <div class="list-container space-y-2 max-h-[500px] overflow-y-auto pr-2">
                     {% for domain in whitelisted_domains %}
-                    <div class="list-item">
-                        <span class="truncate pr-4">{{ domain }}</span>
-                        <form action="/admin/whitelist/remove" method="POST" class="shrink-0">
+                    <div class="domain-entry-card gap-4">
+                        <span class="truncate min-w-0 flex-1">{{ domain }}</span>
+                        <form action="/admin/whitelist/remove" method="POST" class="shrink-0 m-0">
                             <input type="hidden" name="domain" value="{{ domain }}">
                             <button type="submit" class="btn-remove" title="Remove Domain">REMOVE</button>
                         </form>
