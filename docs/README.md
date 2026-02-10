@@ -1,52 +1,49 @@
-# Repository Documentation
+# REPOSITORY DOCUMENTATION
 
-Welcome to the documentation for the **inked** repository. This project appears to be a web crawler and search engine with advanced quality filtering and machine learning-based content classification.
+Welcome to the documentation for the **inked** repository. This project is a specialized web crawler and search engine designed to index high-quality personal blog content while filtering out corporate marketing and low-quality noise.
 
-## Documentation Structure
+## DOCUMENTATION STRUCTURE
 
-The documentation is organized to mirror the repository's file structure. Each file and major directory has its own dedicated documentation file:
+The documentation is organized into functional modules. Each major component has its own dedicated documentation file:
 
-- **Core Application**: [app.py](app-py.md) (The Flask web interface and API).
-- **Crawling System**: [crawler.py](crawler-py.md) (The main crawler logic), [quality_filter.py](quality_filter-py.md) (Page quality assessment).
-- **Quality Configuration**: [quality_config.py](quality_config-py.md) (Thresholds and rules).
-- **Machine Learning**: [ml_classifier.py](ml_classifier-py.md), [ml_train.py](ml_train-py.md), [train_classifier.py](train_classifier-py.md).
-- **Search Engine**: [indexer.py](indexer-py.md) (SQLite FTS search engine).
-- **Data Management**: [ml_data_prep.py](ml_data_prep-py.md), [data/ Index](data-index.md).
-- **UI & Templates**: [templates/ Index](templates-index.md).
-- **Testing**: [tests/ Index](tests-index.md).
+- **WEB INTERFACE**: [WEB_INTERFACE.md](WEB_INTERFACE.md)
+  Describes the Flask administrative dashboard, search UI, and manual labeling tools.
+- **CRAWLING SYSTEM**: [CRAWLING_SYSTEM.md](CRAWLING_SYSTEM.md)
+  Core logic for web traversal, URL normalization, and persistence.
+- **QUALITY ASSESSMENT**: [QUALITY_ASSESSMENT.md](QUALITY_ASSESSMENT.md)
+  The heuristic engine that evaluates page quality based on text-to-HTML ratio, readability, and identity signals.
+- **QUALITY CONFIGURATION**: [QUALITY_CONFIGURATION.md](QUALITY_CONFIGURATION.md)
+  Central repository for thresholds, keyword lists, and filtering rules.
+- **CORPORATE FILTERING**: [CORPORATE_FILTERING.md](CORPORATE_FILTERING.md)
+  Specialized detection logic for landing pages, e-commerce, and spam services.
+- **SEARCH ENGINE**: [SEARCH_ENGINE.md](SEARCH_ENGINE.md)
+  Implementation of the SQLite FTS5 and trigram-based search system.
+- **MACHINE LEARNING**:
+  - [ML_CLASSIFICATION.md](ML_CLASSIFICATION.md): The hybrid ML + Rule-based classifier.
+  - [ML_TRAINING.md](ML_TRAINING.md): Training logic and evaluation metrics.
+  - [TRAINING_WORKFLOW.md](TRAINING_WORKFLOW.md): Orchestration of the ML lifecycle.
+- **DATA & MAINTENANCE**:
+  - [DATA_MANAGEMENT.md](DATA_MANAGEMENT.md): Dataset export and augmentation utilities.
+  - [DATA_STORAGE.md](DATA_STORAGE.md): Overview of the `data/` directory contents.
+  - [INDEX_MAINTENANCE.md](INDEX_MAINTENANCE.md): Tools for purging the search index.
+  - [QUALITY_LOGGING.md](QUALITY_LOGGING.md): Rejection tracking and statistics.
 
-## File Mapping
+## QUICK NAVIGATION
 
-| Repository File       | Documentation File                               |
-| --------------------- | ------------------------------------------------ |
-| `app.py`              | [app-py.md](app-py.md)                           |
-| `crawler.py`          | [crawler-py.md](crawler-py.md)                   |
-| `indexer.py`          | [indexer-py.md](indexer-py.md)                   |
-| `ml_classifier.py`    | [ml_classifier-py.md](ml_classifier-py.md)       |
-| `quality_filter.py`   | [quality_filter-py.md](quality_filter-py.md)     |
-| `quality_config.py`   | [quality_config-py.md](quality_config-py.md)     |
-| `ml_train.py`         | [ml_train-py.md](ml_train-py.md)                 |
-| `ml_data_prep.py`     | [ml_data_prep-py.md](ml_data_prep-py.md)         |
-| `train_classifier.py` | [train_classifier-py.md](train_classifier-py.md) |
-| `reducing-errors.md`  | [reducing-errors.md](reducing-errors.md)         |
+- **[README.md](README.md)**: Root documentation.
+- **[ERROR_REDUCTION_GUIDE.md](ERROR_REDUCTION_GUIDE.md)**: Strategies for improving crawler accuracy.
+- **[UTILITY_SCRIPTS.md](UTILITY_SCRIPTS.md)**: Overview of diagnostic and maintenance scripts.
+- **[TESTING_SUITE.md](TESTING_SUITE.md)**: Information on project tests.
 
-## Binary Assets
+## BINARY ASSETS
 
-The following binary files are present in the repository:
+- `index.db`: SQLite database containing indexed pages.
+- `models/*.bin`: Trained FastText classification models (see [MODELS_OVERVIEW.md](MODELS_OVERVIEW.md)).
 
-- `index.db`: The SQLite database containing indexed pages and domain lists.
-- `models/*.bin`: Trained FastText classification models.
+## HOW TO UPDATE
 
-## How to Regenerate Documentation
+To update this documentation:
 
-Currently, the documentation is generated manually or via AI assistance by scanning the codebase and extracting structural and logic information. To update:
-
-1. Re-analyze the source files for API changes.
-2. Update the corresponding `.md` file in `docs/`.
-3. Update the `docs/README.md` if new files are added.
-
-## Navigation
-
-- [Root Documentation](README.md)
-- [Reducing Errors Guide](reducing-errors.md)
-- [System Architecture](crawler-py.md#architecture)
+1. Re-analyze source files for API or structural changes.
+2. Modify the corresponding `.md` file in the `docs/` directory.
+3. Ensure $README.md$ remains in sync with any new files or major architecture shifts.
