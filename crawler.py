@@ -240,7 +240,7 @@ class SimpleCrawler:
                     str(title),
                     text,
                     html,
-                    quality_result["scores"]["unified_score"],
+                    quality_result["scores"],
                     quality_result["quality_tier"],
                 )
                 # Reset consecutive rejections on acceptance
@@ -296,6 +296,11 @@ class SimpleCrawler:
         try:
             conn = sqlite3.connect(self.db_file)
             cursor = conn.cursor()
+
+            # Serialize quality_score if it's a dict
+            if isinstance(quality_score, dict):
+                quality_score = json.dumps(quality_score)
+
             cursor.execute(
                 "INSERT OR REPLACE INTO pages (url, title, content, html, quality_score, quality_tier) VALUES (?, ?, ?, ?, ?, ?)",
                 (url, title, content, html, quality_score, quality_tier),

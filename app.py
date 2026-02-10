@@ -128,6 +128,14 @@ def get_admin_data():
                 if reasons_raw:
                     for r in [r.strip() for r in reasons_raw.split(",")]:
                         normalized_r = re.sub(r"\s*\(.*?\)", "", r)
+                        if normalized_r in [
+                            "Weak personal blog identity signals",
+                            "Has blog schema",
+                            "Has date indicators",
+                            "Content length out of range",
+                            "Title matched common phrase",
+                        ]:
+                            normalized_r = "Deprecated filters"
                         if normalized_r:
                             rejection_counts[normalized_r] += 1
                 try:
@@ -316,7 +324,9 @@ def test_url():
         _, whitelisted = get_lists()
 
         # Evaluate
-        result = evaluate_page_quality(url, html, text, whitelist=whitelisted)
+        result = evaluate_page_quality(
+            url, html, text, whitelist=whitelisted, force_ml=True
+        )
 
         return jsonify(
             {
