@@ -4,340 +4,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Provoke Explorer - Domains</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono&display=swap"
-        rel="stylesheet">
-    <style>
-        :root {
-            --bg: #0a0a0c;
-            --surface: #121217;
-            --primary: #6366f1;
-            --secondary: #ec4899;
-            --text: #e2e8f0;
-            --text-dim: #94a3b8;
-            --success: #10b981;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --glass: rgba(255, 255, 255, 0.03);
-            --border: rgba(255, 255, 255, 0.08);
+    <title>Provoke Domain Explorer</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bg: '#0a0a0c',
+                        surface: '#121217',
+                        primary: '#6366f1',
+                        secondary: '#ec4899',
+                        success: '#10b981',
+                        danger: '#ef4444',
+                        warning: '#f59e0b',
+                        'text-dim': '#94a3b8',
+                        border: 'rgba(255, 255, 255, 0.08)',
+                        glass: 'rgba(255, 255, 255, 0.03)',
+                    },
+                    fontFamily: {
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                },
+            },
         }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            line-height: 1.6;
-            padding: 2rem;
-            min-height: 100vh;
-        }
-
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-
-        header {
-            margin-bottom: 3rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            letter-spacing: -0.025em;
-            background: linear-gradient(to right, var(--primary), var(--secondary));
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .back-link {
-            color: var(--text-dim);
-            text-decoration: none;
-            font-weight: 600;
-            transition: color 0.2s;
-        }
-
-        .back-link:hover {
-            color: var(--primary);
-        }
-
-        .explorer-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            padding: 2rem;
-            border-radius: 1.25rem;
-            box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.2);
-            margin-bottom: 2rem;
-        }
-
-        .controls {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .control-label {
-            font-size: 0.875rem;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            font-weight: 600;
-        }
-
-        .select-wrapper {
-            position: relative;
-        }
-
-        select {
-            width: 100%;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            padding: 1rem 1.25rem;
-            border-radius: 0.75rem;
-            color: var(--text);
-            font-family: inherit;
-            font-size: 1rem;
-            appearance: none;
-            cursor: pointer;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-
-        select:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-        }
-
-        .select-wrapper::after {
-            content: '↓';
-            position: absolute;
-            right: 1.25rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-dim);
-            pointer-events: none;
-        }
-
-        .results-section h2 {
-            font-size: 1.25rem;
-            margin-bottom: 1.5rem;
-            color: var(--text-dim);
-        }
-
-        .results-section h2 strong {
-            color: var(--primary);
-        }
-
-        .pages-list {
-            display: grid;
-            gap: 1rem;
-        }
-
-        .page-item {
-            background: var(--glass);
-            border: 1px solid var(--border);
-            padding: 1.25rem;
-            border-radius: 1rem;
-            transition: transform 0.2s, border-color 0.2s;
-            display: flex;
-            flex-direction: row;
-            justify-content: space-between;
-            align-items: center;
-            gap: 1.5rem;
-            min-width: 0;
-        }
-
-        .page-item:hover {
-            transform: translateY(-2px);
-            border-color: var(--primary);
-            background: rgba(99, 102, 241, 0.05);
-        }
-
-        .page-title {
-            font-size: 1.125rem;
-            font-weight: 600;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .page-title a {
-            color: var(--text);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .page-title a:hover {
-            color: var(--primary);
-        }
-
-        .page-url {
-            color: var(--text-dim);
-            font-size: 0.875rem;
-            text-decoration: none;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            display: block;
-        }
-
-        .page-url:hover {
-            text-decoration: underline;
-        }
-
-        .page-meta {
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-            margin-top: 0.5rem;
-        }
-
-        .badge {
-            padding: 0.25rem 0.625rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .tier-high {
-            background: rgba(16, 185, 129, 0.1);
-            color: var(--success);
-        }
-
-        .tier-medium {
-            background: rgba(99, 102, 241, 0.1);
-            color: var(--primary);
-        }
-
-        .tier-low {
-            background: rgba(239, 68, 68, 0.1);
-            color: var(--danger);
-        }
-
-        .score-badge {
-            font-family: 'JetBrains Mono', monospace;
-            background: var(--glass);
-            border: 1px solid var(--border);
-            color: var(--text-dim);
-        }
-
-        .page-info {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .delete-btn {
-            background: rgba(239, 68, 68, 0.1);
-            color: var(--danger);
-            border: 1px solid rgba(239, 68, 68, 0.2);
-            padding: 0.625rem 1.25rem;
-            border-radius: 0.75rem;
-            font-size: 0.875rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            white-space: nowrap;
-        }
-
-        .delete-btn:hover {
-            background: var(--danger);
-            color: white;
-            border-color: var(--danger);
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 4rem 2rem;
-            color: var(--text-dim);
-            font-style: italic;
-        }
-
-        @media (max-width: 640px) {
+    </script>
+    <style type="text/tailwindcss">
+        @layer base {
             body {
-                padding: 1rem;
+                @apply bg-bg text-[#e2e8f0] font-mono leading-relaxed min-h-screen p-8;
             }
-
-            header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 1rem;
+            * {
+                @apply rounded-none;
             }
-
-            h1 {
-                font-size: 2rem;
+        }
+        @layer components {
+            .explorer-card {
+                @apply bg-surface border border-border p-8 mb-8 shadow-2xl;
             }
+            .page-item {
+                @apply bg-glass border border-border p-5 transition-all duration-200 hover:border-primary flex flex-row justify-between items-center gap-6 min-w-0;
+            }
+            .sidebar-item {
+                @apply block p-3 text-sm text-text-dim border-l-2 border-transparent transition-all duration-200 hover:bg-white/5 hover:text-white;
+            }
+            .sidebar-item.active {
+                @apply border-primary text-primary bg-primary/5;
+            }
+            .badge {
+                @apply px-2 py-0.5 font-bold uppercase text-[0.65rem];
+            }
+            .input-field {
+                @apply bg-bg border border-border px-4 py-2 text-white font-mono outline-none focus:border-primary w-full appearance-none cursor-pointer transition-all;
+            }
+        }
+        /* Custom select arrow */
+        .custom-select::after {
+            content: '↓';
+            @apply absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-text-dim text-xs font-bold;
         }
     </style>
 </head>
 
 <body>
-    <div class="container">
-        <header>
-            <h1>Domain Explorer</h1>
-            <a href="/admin" class="back-link">← Back to Admin</a>
+    <div class="max-w-[1200px] mx-auto">
+        <header class="flex justify-between items-center mb-12">
+            <h1 class="text-4xl font-bold tracking-tight text-white">Domain Explorer</h1>
+            <a href="/admin" class="text-text-dim hover:text-white font-semibold transition-colors text-sm">Dashboard
+                →</a>
         </header>
 
-        <div class="explorer-card">
-            <div class="controls">
-                <span class="control-label">Select a domain to explore:</span>
-                <div class="select-wrapper">
-                    <select id="domain-select" onchange="location.href='/domains?domain=' + this.value">
-                        <option value="">-- Choose a domain --</option>
-                        {% for domain in domains %}
-                        <option value="{{ domain }}" {% if domain==selected_domain %}selected{% endif %}>
-                            {{ domain }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </div>
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <!-- Sidebar -->
+            <aside class="lg:col-span-1 space-y-2 max-h-[70vh] overflow-y-auto pr-2 border-r border-border/50">
+                <h3 class="text-xs font-bold text-text-dim uppercase tracking-widest mb-4 px-3">Domains ({{
+                    domains|length }})</h3>
+                {% for domain in domains %}
+                <a href="/domains?domain={{ domain }}"
+                    class="sidebar-item {% if selected_domain == domain %}active{% endif %}">
+                    {{ domain }}
+                </a>
+                {% endfor %}
+            </aside>
 
-            <div class="results-section">
-                {% if selected_domain %}
-                <h2>Showing <strong>{{ pages|length }}</strong> pages from <strong>{{ selected_domain }}</strong></h2>
+            <!-- Content Area -->
+            <main class="lg:col-span-3">
+                <div class="explorer-card">
+                    <div class="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center mb-8">
+                        <div>
+                            <h2 class="text-2xl font-bold text-white mb-1">
+                                {% if selected_domain %}{{ selected_domain }}{% else %}Select a domain{% endif %}
+                            </h2>
+                            <p class="text-text-dim text-sm">{{ pages|length }} indexed pages</p>
+                        </div>
+                        <div class="relative custom-select w-full md:w-64">
+                            <select onchange="window.location.href='/domains?domain='+this.value" class="input-field">
+                                <option value="">Quick Jump...</option>
+                                {% for domain in domains %}
+                                <option value="{{ domain }}" {% if selected_domain==domain %}selected{% endif %}>{{
+                                    domain }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
 
-                <div class="pages-list">
-                    {% for page in pages %}
-                    <div class="page-item">
-                        <div class="page-info">
-                            <div class="page-title">
-                                <a href="{{ page.url }}" target="_blank">{{ page.title or 'Untitled' }}</a>
+                    {% if selected_domain %}
+                    <div class="space-y-3">
+                        {% for page in pages %}
+                        <div class="page-item">
+                            <div class="min-w-0 flex-1">
+                                <h4 class="font-bold text-white text-base mb-1 truncate">
+                                    <a href="{{ page.url }}" target="_blank"
+                                        class="hover:text-primary transition-colors text-sm">{{ page.title or 'Untitled'
+                                        }}</a>
+                                </h4>
+                                <div class="text-[0.65rem] text-text-dim truncate font-mono">{{ page.url }}</div>
                             </div>
-                            <a href="{{ page.url }}" class="page-url" target="_blank">{{ page.url }}</a>
-                            <div class="page-meta">
-                                <span class="badge tier-{{ page.tier }}">{{ page.tier }}</span>
-                                <span class="badge score-badge">Score: {{ page.score }}</span>
+                            <div class="flex items-center gap-4 shrink-0">
+                                <div class="text-right">
+                                    <div
+                                        class="text-xs font-bold {% if page.score | float >= 75 %}text-success{% elif page.score | float >= 55 %}text-warning{% else %}text-danger{% endif %}">
+                                        {{ page.score }}</div>
+                                    <div class="text-[0.6rem] text-text-dim uppercase tracking-tighter">Score</div>
+                                </div>
+                                <span
+                                    class="badge {% if page.tier == 'high' %}bg-success/10 text-success{% elif page.tier == 'medium' %}bg-warning/10 text-warning{% else %}bg-danger/10 text-danger{% endif %}">{{
+                                    page.tier }}</span>
+                                <form action="/admin/delete_page" method="POST"
+                                    onsubmit="return confirm('Delete this page?')">
+                                    <input type="hidden" name="url" value="{{ page.url }}">
+                                    <button type="submit"
+                                        class="text-danger opacity-30 hover:opacity-100 hover:bg-danger/10 p-2 transition-all">Delete</button>
+                                </form>
                             </div>
                         </div>
-                        <form action="/admin/delete_page" method="POST" onsubmit="return">
-                            <input type="hidden" name="url" value="{{ page.url }}">
-                            <button type="submit" class="delete-btn">Delete</button>
-                        </form>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
+                    {% else %}
+                    <div class="text-center py-20 bg-black/20 border border-border/50">
+                        <div class="text-4xl text-white/10 font-bold mb-4 italic">NO DOMAIN SELECTED</div>
+                        <p class="text-text-dim text-sm">Pick a domain from the sidebar to inspect its pages.</p>
+                    </div>
+                    {% endif %}
                 </div>
-                {% else %}
-                <div class="empty-state">
-                    Select a domain from the dropdown above to view indexed pages.
+
+                <div class="mt-8 text-center">
+                    <a href="/admin" class="text-text-dim hover:text-white transition-all text-sm font-semibold">← Back
+                        to Admin</a>
                 </div>
-                {% endif %}
-            </div>
+            </main>
         </div>
     </div>
 </body>

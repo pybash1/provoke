@@ -4,237 +4,122 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Label Data - Provoke Admin</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono&display=swap"
-        rel="stylesheet">
-    <style>
-        :root {
-            --bg: #0a0a0c;
-            --surface: #121217;
-            --primary: #6366f1;
-            --secondary: #ec4899;
-            --text: #e2e8f0;
-            --text-dim: #94a3b8;
-            --success: #10b981;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --glass: rgba(255, 255, 255, 0.03);
-            --border: rgba(255, 255, 255, 0.08);
+    <title>Provoke Data Labeler</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bg: '#0a0a0c',
+                        surface: '#121217',
+                        primary: '#6366f1',
+                        secondary: '#ec4899',
+                        success: '#10b981',
+                        danger: '#ef4444',
+                        warning: '#f59e0b',
+                        'text-dim': '#94a3b8',
+                        border: 'rgba(255, 255, 255, 0.08)',
+                        glass: 'rgba(255, 255, 255, 0.03)',
+                    },
+                    fontFamily: {
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                },
+            },
         }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            line-height: 1.5;
-            padding: 2rem;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 800px;
-        }
-
-        header {
-            margin-bottom: 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 100%;
-        }
-
-        .logo {
-            font-size: 1.5rem;
-            font-weight: 700;
-            background: linear-gradient(to right, var(--primary), var(--secondary));
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-decoration: none;
-        }
-
-        .card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 1.5rem;
-            padding: 2.5rem;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            margin-bottom: 2rem;
-            animation: fadeIn 0.4s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
+    </script>
+    <style type="text/tailwindcss">
+        @layer base {
+            body {
+                @apply bg-bg text-[#e2e8f0] font-mono leading-relaxed min-h-screen p-8;
             }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
+            * {
+                @apply rounded-none;
             }
         }
-
-        .item-title {
-            font-size: 1.75rem;
-            font-weight: 700;
-            margin-bottom: 0.75rem;
-            color: #fff;
-        }
-
-        .item-url {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
-            color: var(--primary);
-            word-break: break-all;
-            margin-bottom: 1.5rem;
-            display: block;
-            text-decoration: none;
-        }
-
-        .item-snippet {
-            font-size: 1.1rem;
-            color: var(--text-dim);
-            background: rgba(255, 255, 255, 0.02);
-            padding: 1.5rem;
-            border-radius: 1rem;
-            border-left: 4px solid var(--primary);
-            margin-bottom: 2rem;
-        }
-
-        .actions {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-        }
-
-        .btn {
-            border: none;
-            padding: 1rem;
-            border-radius: 1rem;
-            font-weight: 700;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.5rem;
-            background: var(--glass);
-            color: var(--text);
-            border: 1px solid var(--border);
-        }
-
-        .btn kbd {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.75rem;
-            border-bottom: 2px solid rgba(0, 0, 0, 0.3);
-        }
-
-        .btn-good:hover {
-            background: rgba(16, 185, 129, 0.1);
-            border-color: var(--success);
-            color: var(--success);
-            transform: translateY(-2px);
-        }
-
-        .btn-bad:hover {
-            background: rgba(239, 68, 68, 0.1);
-            border-color: var(--danger);
-            color: var(--danger);
-            transform: translateY(-2px);
-        }
-
-        .btn-unsure:hover {
-            background: rgba(245, 158, 11, 0.1);
-            border-color: var(--warning);
-            color: var(--warning);
-            transform: translateY(-2px);
-        }
-
-        .status {
-            text-align: center;
-            font-size: 0.875rem;
-            color: var(--text-dim);
-            margin-top: 1rem;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 4rem;
-        }
-
-        .empty-state h2 {
-            font-size: 2rem;
-            margin-bottom: 1rem;
+        @layer components {
+            .card {
+                @apply bg-surface border border-border p-10 shadow-2xl;
+            }
+            .snippet-box {
+                @apply text-[1.1rem] text-text-dim bg-white/[0.02] p-6 border-l-4 border-primary mb-8;
+            }
+            .btn-action {
+                @apply p-4 font-bold text-base cursor-pointer transition-all duration-200 flex flex-col items-center gap-2 bg-white/[0.03] border border-border text-white hover:border-primary hover:bg-white/[0.05] active:scale-95;
+            }
+            .btn-action kbd {
+                @apply bg-white/10 px-2 py-0.5 text-[0.75rem] border-b-2 border-black/30;
+            }
         }
     </style>
 </head>
 
 <body>
-    <div class="container">
-        <header>
-            <a href="/admin" class="logo">Provoke Admin</a>
-            <div id="progress-text" class="status">Loading...</div>
+    <div class="max-w-[800px] mx-auto">
+        <header class="flex justify-between items-center mb-12">
+            <h1 class="text-4xl font-bold tracking-tight text-white">Data Labeler</h1>
+            <a href="/admin" class="text-text-dim hover:text-white font-semibold transition-colors text-sm">Dashboard
+                →</a>
         </header>
 
         <div id="label-container">
             {% if item %}
             <div class="card" id="item-card">
-                <h1 class="item-title" id="item-title">{{ item.title }}</h1>
-                <a href="{{ item.url }}" target="_blank" class="item-url" id="item-url">{{ item.url }}</a>
-                <div class="item-snippet" id="item-snippet">
+                <div class="mb-4">
+                    <h2 class="text-2xl font-bold text-white mb-2" id="item-title">{{ item.title or 'Untitled' }}</h2>
+                    <a href="{{ item.url }}" target="_blank"
+                        class="text-primary text-sm hover:underline font-mono truncate block" id="item-url">{{ item.url
+                        }}</a>
+                </div>
+
+                <div class="snippet-box" id="item-snippet">
                     {{ item.snippet }}
                 </div>
 
-                <div class="actions">
-                    <button class="btn btn-good" onclick="submitLabel('good')" title="Good Page">
-                        <span>Good</span>
+                <div class="grid grid-cols-3 gap-4">
+                    <button onclick="submitLabel('good')" class="btn-action hover:!border-success group">
+                        <span class="group-hover:text-success transition-colors uppercase">PROVOKE (GOOD)</span>
                         <kbd>G</kbd>
                     </button>
-                    <button class="btn btn-bad" onclick="submitLabel('bad')" title="Bad Page">
-                        <span>Bad</span>
+                    <button onclick="submitLabel('bad')" class="btn-action hover:!border-danger group">
+                        <span class="group-hover:text-danger transition-colors uppercase">REJECT (BAD)</span>
                         <kbd>B</kbd>
                     </button>
-                    <button class="btn btn-unsure" onclick="submitLabel('unsure')" title="Not Sure">
-                        <span>Unsure</span>
+                    <button onclick="submitLabel('unsure')" class="btn-action hover:!border-warning group">
+                        <span class="group-hover:text-warning transition-colors uppercase">UNSURE (?)</span>
                         <kbd>U</kbd>
                     </button>
                 </div>
+
+                <div class="mt-8 text-center text-text-dim text-xs">
+                    Use keys <span class="text-primary font-bold">G</span>, <span
+                        class="text-danger font-bold">B</span>, or <span class="text-warning font-bold">U</span> for
+                    quick labeling.
+                </div>
             </div>
             {% else %}
-            <div class="empty-state">
-                <h2>All caught up! 🎉</h2>
-                <p>No more items to label in data/to_label.csv</p>
-                <br>
-                <a href="/admin" class="btn" style="display: inline-block;">Back to Dashboard</a>
+            <div class="text-center py-20 bg-surface border border-border">
+                <h2 class="text-3xl font-bold text-white mb-4">All caught up!</h2>
+                <p class="text-text-dim mb-8">No more items to label in data/to_label.csv</p>
+                <a href="/admin"
+                    class="inline-block bg-primary text-white px-8 py-3 font-bold hover:brightness-110 transition-all">Back
+                    to Dashboard</a>
             </div>
             {% endif %}
         </div>
     </div>
 
     <script>
-        let currentUrl = "{{ item.url if item else '' }}";
-
         async function submitLabel(label) {
+            const currentUrl = document.getElementById('item-url')?.innerText;
             if (!currentUrl) return;
 
-            // Simple visual feedback
+            // Simple transition effect
             const card = document.getElementById('item-card');
-            if (card) card.style.opacity = '0.5';
+            card.style.opacity = '0.5';
+            card.style.pointerEvents = 'none';
 
             try {
                 const response = await fetch('/api/label', {
@@ -242,64 +127,48 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: currentUrl, label: label })
                 });
-                const data = await response.json();
 
-                if (data.next_item) {
-                    updateUI(data.next_item);
-                } else {
-                    showEmptyState();
+                const data = await response.json();
+                if (data.success) {
+                    if (data.next_item) {
+                        updateItem(data.next_item);
+                        card.style.opacity = '1';
+                        card.style.pointerEvents = 'auto';
+                    } else {
+                        showEmptyState();
+                    }
                 }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Failed to save label');
-                if (card) card.style.opacity = '1';
+            } catch (e) {
+                console.error(e);
+                alert('Error submitting label');
+                card.style.opacity = '1';
+                card.style.pointerEvents = 'auto';
             }
         }
 
-        function updateUI(item) {
-            currentUrl = item.url;
-            document.getElementById('item-title').innerText = item.title;
+        function updateItem(item) {
+            document.getElementById('item-title').innerText = item.title || 'Untitled';
             document.getElementById('item-url').innerText = item.url;
             document.getElementById('item-url').href = item.url;
             document.getElementById('item-snippet').innerText = item.snippet;
-
-            const card = document.getElementById('item-card');
-            card.style.opacity = '1';
-
-            // Re-trigger animation
-            card.style.animation = 'none';
-            card.offsetHeight; /* trigger reflow */
-            card.style.animation = null;
-
-            // Update progress counter
-            updateProgress();
         }
 
         function showEmptyState() {
             document.getElementById('label-container').innerHTML = `
-                <div class="empty-state">
-                    <h2>All caught up! 🎉</h2>
-                    <p>No more items to label in data/to_label.csv</p>
-                    <br>
-                    <a href="/admin" class="btn" style="display: inline-block; text-decoration: none;">Back to Dashboard</a>
+                <div class="text-center py-20 bg-surface border border-border">
+                    <h2 class="text-3xl font-bold text-white mb-4">All caught up!</h2>
+                    <p class="text-text-dim mb-8">No more items to label in data/to_label.csv</p>
+                    <a href="/admin" class="inline-block bg-primary text-white px-8 py-3 font-bold hover:brightness-110 transition-all">Back to Dashboard</a>
                 </div>
             `;
         }
 
-        // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
-            if (e.key.toLowerCase() === 'g') submitLabel('good');
-            if (e.key.toLowerCase() === 'b') submitLabel('bad');
-            if (e.key.toLowerCase() === 'u') submitLabel('unsure');
+            const key = e.key.toLowerCase();
+            if (key === 'g') submitLabel('good');
+            if (key === 'b') submitLabel('bad');
+            if (key === 'u') submitLabel('unsure');
         });
-
-        // Initialize progress
-        async function updateProgress() {
-            const res = await fetch('/api/stats');
-            const data = await res.json();
-            document.getElementById('progress-text').innerText = `${data.done_labels} items labeled | ${data.pending_labels} remaining`;
-        }
-        updateProgress();
     </script>
 </body>
 
