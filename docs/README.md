@@ -1,6 +1,6 @@
 # REPOSITORY DOCUMENTATION
 
-Welcome to the documentation for the **inked** repository. This project is a specialized web crawler and search engine designed to index high-quality personal blog content while filtering out corporate marketing and low-quality noise.
+Welcome to the documentation for the **Provoke** repository. This project is a specialized web crawler and search engine designed to index high-quality personal blog content while filtering out corporate marketing and low-quality noise.
 
 ## DOCUMENTATION STRUCTURE
 

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inked Explorer - Domains</title>
+    <title>Provoke Explorer - Domains</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono&display=swap"
         rel="stylesheet">
     <style>
@@ -325,8 +325,7 @@
                                 <span class="badge score-badge">Score: {{ page.score }}</span>
                             </div>
                         </div>
-                        <form action="/admin/delete_page" method="POST"
-                            onsubmit="return">
+                        <form action="/admin/delete_page" method="POST" onsubmit="return">
                             <input type="hidden" name="url" value="{{ page.url }}">
                             <button type="submit" class="delete-btn">Delete</button>
                         </form>
