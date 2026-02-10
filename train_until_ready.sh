@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Target precision 
-TARGET_PRECISION=0.989
+TARGET_PRECISION=0.998
 PRECISION=0
 
 echo "🚀 Starting training loop to reach precision $TARGET_PRECISION..."
