@@ -1,4 +1,4 @@
-# ml_train.py
+# ML Training (`ml_train.py`)
 
 ## Summary
 
@@ -10,7 +10,7 @@ The training and evaluation module for the FastText content classifier.
 
 ### Training Features:
 
-- **Tuning Parameters**: Supports adjusting learning rate (`lr`), epochs, embedding dimension (`dim`), and word n-grams.
+- **Tuning Parameters**: Supports adjusting learning rate (`lr`), epochs, embedding dimension (`dim`), and word n-grams through `config.py` defaults or CLI arguments.
 - **Bi-grams**: By default, uses `wordNgrams=2` to capture context like "buy now" or "blog post".
 - **NumPy 2.0 Patch**: Re-implements the NumPy patch found in other ML modules for consistency.
 
@@ -44,6 +44,7 @@ Evaluates an existing model.
 
 - `fasttext`: The machine learning engine.
 - `numpy`: Data processing.
+- `config`: For default hyperparameters and paths.
 
 ## Examples
 
@@ -58,6 +59,6 @@ evaluate_model("models/content_classifier.bin", "data/test.txt")
 
 ## Related
 
-- [ml_classifier-py.md](ml_classifier-py.md)
-- [train_classifier-py.md](train_classifier-py.md)
-- [ml_data_prep-py.md](ml_data_prep-py.md)
+- [ML_CLASSIFICATION.md](ML_CLASSIFICATION.md)
+- [TRAINING_WORKFLOW.md](TRAINING_WORKFLOW.md)
+- [DATA_MANAGEMENT.md](DATA_MANAGEMENT.md)

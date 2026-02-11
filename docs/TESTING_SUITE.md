@@ -1,4 +1,4 @@
-# tests/
+# testing_suite/
 
 ## Purpose
 
@@ -6,8 +6,8 @@ The `tests/` directory contains unit and integration tests to ensure the reliabi
 
 ## Test Files
 
-- **[test_landing_page_filter.py](tests-test_landing_page_filter-py.md)**: Verifies that corporate and commercial pages are correctly identified.
-- **[test_quality_filter.py](tests-test_quality_filter-py.md)**: Tests the unified scoring system against various HTML samples.
+- **test_landing_page_filter.py**: Verifies that corporate and commercial pages are correctly identified by the `landing_page_filter` module.
+- **test_quality_filter.py**: Tests the unified scoring system (now in `config.py`) against various HTML samples.
 
 ## Running Tests
 
@@ -19,5 +19,4 @@ pytest tests/
 
 ## Related Documentation
 
-- [quality_filter.py](../docs/quality_filter-py.md)
-- [landing_page_filter.py](../docs/landing_page_filter-py.md)
+- [CONFIG.md](CONFIG.md)

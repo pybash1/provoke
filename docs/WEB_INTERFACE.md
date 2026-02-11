@@ -1,8 +1,8 @@
-# app.py
+# Web App (`app.py`)
 
 ## Summary
 
-The main Flask web application for the project. It provides a search interface, an admin dashboard for monitoring crawl stats, and tools for managing domain blacklists/whitelists and labeling data.
+The main Flask web application for the Provoke Search Engine. It provides a search interface, an admin dashboard for monitoring crawl stats, and tools for managing domain blacklists/whitelists and labeling data.
 
 ## Description
 
@@ -26,7 +26,7 @@ The main Flask web application for the project. It provides a search interface, 
 - `GET /admin/lists`: Manage blacklist and whitelist domains.
 - `GET /admin/label`: UI for manual data labeling.
 - `GET /admin/crawl`: Trigger a crawl (supports `url` and `depth` parameters).
-- `GET /admin/test_url`: Dry-run quality evaluation for a specific URL.
+- `GET /admin/test_url`: Dry-run quality evaluation for a specific URL using `config.evaluate_page_quality`.
 
 ### Internal Functions:
 
@@ -39,9 +39,10 @@ The main Flask web application for the project. It provides a search interface, 
 - `Flask`: Web framework.
 - `sqlite3`: Database interaction.
 - `indexer.SearchEngine`: Core search functionality.
-- `quality_filter.evaluate_page_quality`: used in the `test_url` route.
+- `config`: Central configuration & quality logic.
 - `BeautifulSoup`: For basic HTML parsing in dry-runs.
 - `requests`: For fetching URLs in dry-runs.
+- `subprocess`: For running the crawler from the UI.
 
 ## Examples
 
@@ -66,6 +67,6 @@ By default, it runs on `http://127.0.0.1:4000`.
 
 ## Related
 
-- [indexer-py.md](indexer-py.md)
-- [crawler-py.md](crawler-py.md)
-- [templates-index.md](templates-index.md)
+- [CONFIG.md](CONFIG.md)
+- [CRAWLING_SYSTEM.md](CRAWLING_SYSTEM.md)
+- [SEARCH_ENGINE.md](SEARCH_ENGINE.md)

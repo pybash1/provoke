@@ -1,4 +1,4 @@
-# ml_data_prep.py
+# ML Data Preparation (`ml_data_prep.py`)
 
 ## Summary
 
@@ -40,6 +40,7 @@ Splits the formatted text file into two parts for training and evaluation.
 - `sqlite3`: To fetch indexed content.
 - `requests` & `BeautifulSoup`: To fetch metadata for rejected URLs during augmentation.
 - `csv`: For managing the labeling files.
+- `config`: For file paths.
 
 ## Notes/Limitations
 
@@ -48,5 +49,5 @@ Splits the formatted text file into two parts for training and evaluation.
 
 ## Related
 
-- [train_classifier-py.md](train_classifier-py.md)
-- [ml_train-py.md](ml_train-py.md)
+- [TRAINING_WORKFLOW.md](TRAINING_WORKFLOW.md)
+- [ML_TRAINING.md](ML_TRAINING.md)

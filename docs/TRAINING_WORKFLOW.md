@@ -1,4 +1,4 @@
-# train_classifier.py
+# ML Training Workflow (`train_classifier.py`)
 
 ## Summary
 
@@ -8,8 +8,8 @@ The high-level CLI workflow for managing the lifecycle of the content classifier
 
 `train_classifier.py` orchestrates the process of creating a custom machine learning model for content quality. It provides a three-step workflow:
 
-1.  **Export**: Gathers URLs from the index and rejected logs for manual labeling.
-2.  **Train**: Converts labeled CSV data into FastText format, splits it into training/test sets, and trains the model.
+1.  **Export**: Gathers URLs from the index and rejected logs (via `ml_data_prep.py`) for manual labeling.
+2.  **Train**: Converts labeled CSV data into FastText format, splits it into training/test sets, and trains the model (via `ml_train.py`).
 3.  **Evaluate**: Runs the trained model against a test set to determine accuracy.
 
 ## Public API / Interfaces
@@ -24,17 +24,18 @@ python train_classifier.py --evaluate
 
 #### Commands:
 
-- `--export`: Creates `data/to_label.csv`. It takes a mix of indexed pages (likely good) and rejected URLs (pre-filled as 'bad').
+- `--export`: Creates `data/to_label.csv` (path from `config.py`). It takes a mix of indexed pages (likely good) and rejected URLs (pre-filled as 'bad').
 - `--train`:
   - Generates `data/training_data.txt` from the CSV.
   - Creates `data/train.txt` and `data/test.txt`.
-  - Trains the model and saves it to `models/content_classifier.bin`.
+  - Trains the model and saves it to `models/model.bin`.
 - `--evaluate`: Runs evaluation metrics on the current model and test set.
 
 ## Dependencies
 
 - `ml_data_prep`: For data manipulation and file generation.
 - `ml_train`: For core FastText training and evaluation.
+- `config`: For file paths and configuration.
 
 ## Examples
 
@@ -58,6 +59,6 @@ python train_classifier.py --evaluate
 
 ## Related
 
-- [ml_train-py.md](ml_train-py.md)
-- [ml_data_prep-py.md](ml_data_prep-py.md)
-- [ml_classifier-py.md](ml_classifier-py.md)
+- [ML_TRAINING.md](ML_TRAINING.md)
+- [DATA_MANAGEMENT.md](DATA_MANAGEMENT.md)
+- [ML_CLASSIFICATION.md](ML_CLASSIFICATION.md)

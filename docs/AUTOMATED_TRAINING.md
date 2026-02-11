@@ -1,4 +1,4 @@
-# train_until_ready.sh
+# Automated Training (`train_until_ready.sh`)
 
 ## Summary
 
@@ -19,6 +19,7 @@ A bash script for automated iterative training of the content classifier.
 - `bash`
 - `python3`
 - `grep`, `awk` (for parsing precision from output)
+- `train_classifier.py`
 
 ## Notes
 

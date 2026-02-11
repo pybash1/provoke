@@ -1,4 +1,4 @@
-# quality_logger.py
+# Quality Logging (`quality_logger.py`)
 
 ## Summary
 
@@ -28,6 +28,7 @@ A logging utility for tracking crawler performance, specifically focusing on pag
 
 - `logging`: Python standard library for text logs.
 - `csv`: For managing the stats file.
+- `config`: For file paths.
 
 ## Notes/Limitations
 
@@ -35,5 +36,5 @@ A logging utility for tracking crawler performance, specifically focusing on pag
 
 ## Related
 
-- [crawler-py.md](crawler-py.md)
-- [ml_data_prep-py.md](ml_data_prep-py.md)
+- [CRAWLING_SYSTEM.md](CRAWLING_SYSTEM.md)
+- [DATA_MANAGEMENT.md](DATA_MANAGEMENT.md)

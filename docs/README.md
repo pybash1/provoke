@@ -10,12 +10,8 @@ The documentation is organized into functional modules. Each major component has
   Describes the Flask administrative dashboard, search UI, and manual labeling tools.
 - **CRAWLING SYSTEM**: [CRAWLING_SYSTEM.md](CRAWLING_SYSTEM.md)
   Core logic for web traversal, URL normalization, and persistence.
-- **QUALITY ASSESSMENT**: [QUALITY_ASSESSMENT.md](QUALITY_ASSESSMENT.md)
-  The heuristic engine that evaluates page quality based on text-to-HTML ratio, readability, and identity signals.
-- **QUALITY CONFIGURATION**: [QUALITY_CONFIGURATION.md](QUALITY_CONFIGURATION.md)
-  Central repository for thresholds, keyword lists, and filtering rules.
-- **CORPORATE FILTERING**: [CORPORATE_FILTERING.md](CORPORATE_FILTERING.md)
-  Specialized detection logic for landing pages, e-commerce, and spam services.
+- **CONFIGURATION & LOGIC**: [CONFIG.md](CONFIG.md)
+  Central repository for settings, thresholds, and quality assessment logic (replacing `quality_config.py` and `quality_filter.py`).
 - **SEARCH ENGINE**: [SEARCH_ENGINE.md](SEARCH_ENGINE.md)
   Implementation of the SQLite FTS5 and trigram-based search system.
 - **MACHINE LEARNING**:

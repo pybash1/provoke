@@ -1,4 +1,4 @@
-# data/
+# Data Storage (`data/`)
 
 ## Purpose
 
@@ -15,5 +15,5 @@ The `data/` directory stores all persistent datasets, including manual labels, l
 
 ## Related Documentation
 
-- [ml_data_prep.py](../docs/ml_data_prep-py.md): The script that manages these files.
-- [train_classifier.py](../docs/train_classifier-py.md): The CLI tool for processing this data.
+- [DATA_MANAGEMENT.md](DATA_MANAGEMENT.md): Documentation for `ml_data_prep.py`.
+- [TRAINING_WORKFLOW.md](TRAINING_WORKFLOW.md): Documentation for `train_classifier.py`.

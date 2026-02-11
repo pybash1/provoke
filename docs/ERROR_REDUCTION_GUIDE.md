@@ -55,25 +55,7 @@ print(f'Good: {good}, Bad: {bad}, Ratio: {good/bad:.2f}')
 
 ### 2. **Tune Model Hyperparameters**
 
-Create a script to test different parameters:
-
-```python
-# hyperparameter_tuning.py
-from ml_train import train_fasttext_model, evaluate_model
-
-configs = [
-    {'lr': 0.5, 'epoch': 25, 'wordNgrams': 2, 'dim': 100},  # Current
-    {'lr': 0.3, 'epoch': 50, 'wordNgrams': 3, 'dim': 150},  # More epochs, larger
-    {'lr': 0.7, 'epoch': 30, 'wordNgrams': 2, 'dim': 100},  # Higher learning rate
-    {'lr': 0.5, 'epoch': 25, 'wordNgrams': 3, 'dim': 100},  # Trigrams
-]
-
-for i, config in enumerate(configs):
-    print(f"\n=== Config {i+1} ===")
-    print(config)
-    train_fasttext_model('data/train.txt', f'models/test_{i}.bin', **config)
-    evaluate_model(f'models/test_{i}.bin', 'data/test.txt')
-```
+Create a script to test different parameters (see `ml_train.py` for variables):
 
 **Key parameters to adjust:**
 
@@ -86,19 +68,7 @@ for i, config in enumerate(configs):
 
 ### 3. **Adjust Classification Threshold**
 
-Instead of accepting the top prediction, use confidence thresholds:
-
-```python
-# In quality_filter.py or wherever you use the model
-def classify_with_threshold(model, text, threshold=0.7):
-    labels, confidences = model.predict(text)
-
-    if confidences[0] < threshold:
-        # Low confidence - mark as "unsure" or apply stricter rules
-        return "unsure"
-
-    return labels[0].replace("__label__", "")
-```
+Instead of accepting the top prediction, use confidence thresholds in `config.py` (under `ML_CONFIG`):
 
 **Strategy:**
 
@@ -157,7 +127,7 @@ def extract_title_features(title):
 
 ### 5. **Ensemble Methods**
 
-Combine multiple signals:
+Combine multiple signals (as done in `ml_classifier.py`'s `enhanced_check`):
 
 ```python
 def ensemble_classify(url, title, content):
@@ -190,32 +160,13 @@ def ensemble_classify(url, title, content):
 
 Focus on uncertain predictions:
 
-```python
-# Find low-confidence predictions
-def find_uncertain_predictions(model, unlabeled_data):
-    uncertain = []
-
-    for item in unlabeled_data:
-        labels, confidences = model.predict(item['text'])
-
-        # Low confidence = uncertain
-        if confidences[0] < 0.7:
-            uncertain.append({
-                'url': item['url'],
-                'confidence': confidences[0],
-                'prediction': labels[0]
-            })
-
-    return sorted(uncertain, key=lambda x: x['confidence'])
-```
-
 **Workflow:**
 
-1. Run model on unlabeled data
-2. Export low-confidence predictions
-3. Manually label these
-4. Retrain model
-5. Repeat
+1. Run `check_model_stats.py` on unlabeled data in the index.
+2. Export low-confidence predictions.
+3. Manually label these.
+4. Retrain model.
+5. Repeat.
 
 ---
 
@@ -223,40 +174,11 @@ def find_uncertain_predictions(model, unlabeled_data):
 
 #### For False Positives (Bad→Good):
 
-Most are **homepages** or **index pages**. Add rules:
-
-```python
-# In quality_filter.py
-def is_likely_homepage(url, title, content):
-    # Short content
-    if len(content) < 800:
-        # Generic titles
-        if any(word in title.lower() for word in ['home', 'welcome', 'index']):
-            return True
-
-        # Root URL
-        if url.endswith('/') or url.count('/') <= 3:
-            return True
-
-    return False
-```
+Most are **homepages** or **index pages**. Add rules to `calculate_corporate_score` in `config.py` or filters in `landing_page_filter.py`.
 
 #### For False Negatives (Good→Bad):
 
-Most are **RSS feeds** or **minimal pages**. Add exceptions:
-
-```python
-def is_special_format(url, title):
-    # RSS/Atom feeds
-    if url.endswith('.xml') or '/feed' in url or '/rss' in url:
-        return True
-
-    # Known good minimal pages
-    if 'say hi' in title.lower() or 'contact' in title.lower():
-        return True
-
-    return False
-```
+Most are **RSS feeds** or **minimal pages**. Add exceptions for known good structures.
 
 ---
 
@@ -288,18 +210,7 @@ def is_special_format(url, title):
 
 ## Monitoring
 
-Track these metrics over time:
-
-```python
-# Add to ml_train.py
-def detailed_metrics(model, test_file):
-    # ... existing code ...
-
-    print(f"\nError Rate by Confidence:")
-    print(f"High confidence (>0.9) errors: {high_conf_errors}")
-    print(f"Medium confidence (0.7-0.9) errors: {med_conf_errors}")
-    print(f"Low confidence (<0.7) errors: {low_conf_errors}")
-```
+Track these metrics over time using `check_model_stats.py`.
 
 **Goal:**
 

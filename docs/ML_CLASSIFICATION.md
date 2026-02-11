@@ -1,4 +1,4 @@
-# ml_classifier.py
+# ML Classifier (`ml_classifier.py`)
 
 ## Summary
 
@@ -23,10 +23,10 @@ The machine learning module that classifies web content as 'good' (article/blog)
 
 #### Methods:
 
-- `__init__(model_path)`: Loads the `.bin` model file.
-- `predict(text, url="", title="", threshold=0.7)`: Returns raw label and confidence.
-- `enhanced_check(url, title, content, ml_label, ml_confidence)`: Adjusts confidence based on rules.
-- `is_acceptable(text, url="", title="")`: Final boolean decision for the crawler.
+- **`__init__(model_path)`**: Loads the `.bin` model file.
+- **`predict(text, url="", title="", threshold=0.7)`**: Returns raw label and confidence.
+- **`enhanced_check(url, title, content, ml_label, ml_confidence)`**: Adjusts confidence based on rules.
+- **`is_acceptable(text, url="", title="")`**: Final boolean decision for the crawler.
 
 ### Global Interface
 
@@ -63,6 +63,5 @@ if clf:
 
 ## Related
 
-- [ml_train-py.md](ml_train-py.md)
-- [quality_filter-py.md](quality_filter-py.md)
-- [quality_config-py.md](quality_config-py.md)
+- [ML_TRAINING.md](ML_TRAINING.md)
+- [CONFIG.md](CONFIG.md)
