@@ -1,11 +1,12 @@
 import sqlite3
 import os
 import difflib
+from config import config
 
 
 class SearchEngine:
-    def __init__(self, db_file="index.db"):
-        self.db_file = db_file
+    def __init__(self, db_file=None):
+        self.db_file = db_file or config.DATABASE_PATH
         if not os.path.exists(self.db_file):
             print(f"Warning: {self.db_file} not found. Search results will be empty.")
 

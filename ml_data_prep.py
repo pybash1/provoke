@@ -4,8 +4,9 @@ import random
 import os
 import requests
 from bs4 import BeautifulSoup
+from config import config
 
-DB_PATH = "index.db"
+DB_PATH = config.DATABASE_PATH
 
 
 def export_indexed_pages(output_file: str, limit: int = 500):
@@ -55,7 +56,11 @@ def export_indexed_pages(output_file: str, limit: int = 500):
 def fetch_basic_info(url):
     """Fetch basic title and snippet for a URL."""
     try:
-        response = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+        response = requests.get(
+            url,
+            timeout=config.CRAWLER_TIMEOUT,
+            headers={"User-Agent": config.USER_AGENT_SHORT},
+        )
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "lxml")
             title = soup.title.string if soup.title else ""
@@ -77,10 +82,14 @@ def fetch_basic_info(url):
 def augment_from_rejected_urls(
     output_file: str,
     limit: int = 100,
-    stats_file: str = "quality_stats.csv",
-    done_file: str = "data/to_label_done.csv",
+    stats_file: str | None = None,
+    done_file: str | None = None,
 ):
     """Augment the labeling dataset with URLs that were rejected by the crawler."""
+    if stats_file is None:
+        stats_file = config.QUALITY_STATS_CSV
+    if done_file is None:
+        done_file = config.LABEL_DONE_CSV
     if not os.path.exists(stats_file):
         print(f"Stats file {stats_file} not found.")
         return

@@ -2,12 +2,13 @@ import csv
 import os
 import logging
 from datetime import datetime
+from config import config
 
 
 class QualityLogger:
-    def __init__(self, log_file="rejected_urls.log", csv_file="quality_stats.csv"):
-        self.log_file = log_file
-        self.csv_file = csv_file
+    def __init__(self, log_file=None, csv_file=None):
+        self.log_file = log_file or config.REJECTED_URLS_LOG
+        self.csv_file = csv_file or config.QUALITY_STATS_CSV
         self.stats = {
             "accepted": 0,
             "rejected": 0,

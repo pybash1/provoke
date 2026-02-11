@@ -7,6 +7,7 @@ import json
 from collections import Counter
 from urllib.parse import urlparse
 from indexer import SearchEngine
+from config import config
 
 app = Flask(__name__)
 engine = SearchEngine()
@@ -23,7 +24,7 @@ def index():
 
 
 def get_lists():
-    conn = sqlite3.connect("index.db")
+    conn = sqlite3.connect(config.DATABASE_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT domain FROM blacklisted_domains")
     blacklisted = [row[0] for row in cursor.fetchall()]
@@ -34,7 +35,7 @@ def get_lists():
 
 
 def get_admin_data():
-    conn = sqlite3.connect("index.db")
+    conn = sqlite3.connect(config.DATABASE_PATH)
     cursor = conn.cursor()
 
     # Ensure tables exist and handle migrations
@@ -123,8 +124,8 @@ def get_admin_data():
     total_rejected = 0
     rejected_word_counts = []
     rejected_text_ratios = []
-    if os.path.exists("quality_stats.csv"):
-        with open("quality_stats.csv", "r", newline="", encoding="utf-8") as f:
+    if os.path.exists(config.QUALITY_STATS_CSV):
+        with open(config.QUALITY_STATS_CSV, "r", newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 total_rejected += 1
@@ -169,8 +170,8 @@ def get_admin_data():
     # Labeling Progress
     done_labels = 0
     pending_labels = 0
-    if os.path.exists("data/to_label.csv"):
-        with open("data/to_label.csv", "r", encoding="utf-8") as f:
+    if os.path.exists(config.LABEL_CSV):
+        with open(config.LABEL_CSV, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 # Skip corrupted rows
@@ -235,7 +236,7 @@ def get_domain_info(target_domain=None):
     import sqlite3
     from urllib.parse import urlparse
 
-    conn = sqlite3.connect("index.db")
+    conn = sqlite3.connect(config.DATABASE_PATH)
     cursor = conn.cursor()
 
     # Get all URLs to extract domains
@@ -315,7 +316,7 @@ def test_url():
     from flask import jsonify, request
     import requests
     from bs4 import BeautifulSoup
-    from quality_filter import evaluate_page_quality
+    from config import evaluate_page_quality
 
     url = request.args.get("url")
     if not url:
@@ -324,10 +325,8 @@ def test_url():
     try:
         # Simple fetch (no dynamic for dry run to keep it fast)
         # Use a real user agent to avoid basic bot blocks
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
-        response = requests.get(url, timeout=10, headers=headers)
+        headers = {"User-Agent": config.USER_AGENT}
+        response = requests.get(url, timeout=config.HTTP_TIMEOUT, headers=headers)
         response.raise_for_status()
         html = response.text
 
@@ -363,7 +362,7 @@ def blacklist_add():
     if domain:
         import sqlite3
 
-        conn = sqlite3.connect("index.db")
+        conn = sqlite3.connect(config.DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute(
             "INSERT OR IGNORE INTO blacklisted_domains (domain) VALUES (?)", (domain,)
@@ -380,7 +379,7 @@ def blacklist_remove():
     if domain:
         import sqlite3
 
-        conn = sqlite3.connect("index.db")
+        conn = sqlite3.connect(config.DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM blacklisted_domains WHERE domain = ?", (domain,))
         conn.commit()
@@ -395,7 +394,7 @@ def whitelist_add():
     if domain:
         import sqlite3
 
-        conn = sqlite3.connect("index.db")
+        conn = sqlite3.connect(config.DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute(
             "INSERT OR IGNORE INTO whitelisted_domains (domain) VALUES (?)",
@@ -413,7 +412,7 @@ def whitelist_remove():
     if domain:
         import sqlite3
 
-        conn = sqlite3.connect("index.db")
+        conn = sqlite3.connect(config.DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM whitelisted_domains WHERE domain = ?", (domain,))
         conn.commit()
@@ -432,7 +431,7 @@ def delete_page():
     import csv
     import os
 
-    conn = sqlite3.connect("index.db")
+    conn = sqlite3.connect(config.DATABASE_PATH)
     cursor = conn.cursor()
 
     # Get page data before deleting
@@ -447,7 +446,7 @@ def delete_page():
             snippet = snippet[:297] + "..."
 
         # Update to_label.csv
-        csv_path = "data/to_label.csv"
+        csv_path = config.LABEL_CSV
         # Ensure directory exists
         os.makedirs(os.path.dirname(csv_path), exist_ok=True)
 
@@ -514,7 +513,7 @@ def admin_crawl():
 
 @app.route("/admin/label")
 def label_ui():
-    csv_path = "data/to_label.csv"
+    csv_path = config.LABEL_CSV
     if not os.path.exists(csv_path):
         return "No items to label", 404
 
@@ -551,7 +550,7 @@ def api_label():
     url = data.get("url")
     label = data.get("label")
 
-    csv_path = "data/to_label.csv"
+    csv_path = config.LABEL_CSV
     rows = []
     updated = False
     fieldnames = ["url", "title", "snippet", "quality"]
@@ -598,4 +597,4 @@ def api_label():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=4000)
+    app.run(debug=config.SERVER_DEBUG, host=config.SERVER_HOST, port=config.SERVER_PORT)

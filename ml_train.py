@@ -1,6 +1,7 @@
 import fasttext
 import os
 import numpy as np
+from config import config
 
 # NumPy 2.0 Compatibility Patch for FastText
 # FastText uses np.array(..., copy=False) which crashes in NumPy 2.0+
@@ -20,13 +21,18 @@ np.array = _patched_array
 def train_fasttext_model(
     train_file: str,
     model_path: str,
-    lr: float = 0.7,
-    epoch: int = 25,
-    wordNgrams: int = 2,
-    dim: int = 100,
-    verbose: int = 2,
+    lr: float | None = None,
+    epoch: int | None = None,
+    wordNgrams: int | None = None,
+    dim: int | None = None,
+    verbose: int | None = None,
 ):
     """Train FastText supervised classifier."""
+    lr = lr if lr is not None else config.ML_LEARNING_RATE
+    epoch = epoch if epoch is not None else config.ML_EPOCHS
+    wordNgrams = wordNgrams if wordNgrams is not None else config.ML_WORD_NGRAMS
+    dim = dim if dim is not None else config.ML_EMBEDDING_DIM
+    verbose = verbose if verbose is not None else config.ML_VERBOSE
 
     if not os.path.exists(train_file):
         print(f"Error: {train_file} not found.")

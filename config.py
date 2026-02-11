@@ -1,16 +1,402 @@
+"""
+Centralized configuration for the Provoke Search Engine.
+
+All application settings are consolidated here. Individual modules should
+import from this file instead of defining their own constants or paths.
+
+Supports environment-based overrides via the PROVOKE_ENV environment variable:
+  - "development" (default): debug mode, verbose logging
+  - "production": optimized settings, no debug
+
+Usage:
+    from config import config
+    db_path = config.DATABASE_PATH
+"""
+
+import os
 import re
-from bs4 import BeautifulSoup
 from urllib.parse import urlparse
+from bs4 import BeautifulSoup
 import textstat
-from quality_config import (
-    THRESHOLDS,
-    CTA_PHRASES,
-    MARKETING_TOOLS,
-    AD_NETWORKS,
-    TRACKING_SCRIPTS,
-    AD_ELEMENT_PATTERNS,
-    EXCLUDED_TITLE_PATTERNS,
-)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _env(key: str, default: str = "") -> str:
+    """Read an environment variable with a fallback default."""
+    return os.environ.get(key, default)
+
+
+def _env_bool(key: str, default: bool = False) -> bool:
+    """Read a boolean environment variable (truthy: 1, true, yes)."""
+    val = os.environ.get(key, "")
+    if not val:
+        return default
+    return val.strip().lower() in ("1", "true", "yes")
+
+
+def _env_int(key: str, default: int = 0) -> int:
+    """Read an integer environment variable with a fallback."""
+    val = os.environ.get(key, "")
+    if not val:
+        return default
+    try:
+        return int(val)
+    except ValueError:
+        return default
+
+
+def _env_float(key: str, default: float = 0.0) -> float:
+    """Read a float environment variable with a fallback."""
+    val = os.environ.get(key, "")
+    if not val:
+        return default
+    try:
+        return float(val)
+    except ValueError:
+        return default
+
+
+# ---------------------------------------------------------------------------
+# Base Configuration
+# ---------------------------------------------------------------------------
+
+
+class _BaseConfig:
+    """
+    All settings live as class attributes for easy dot-access.
+    Subclasses override per-environment values.
+    """
+
+    # ── Environment ───────────────────────────────────────────────────────
+    ENV: str = _env("PROVOKE_ENV", "development")
+
+    # ── Database ──────────────────────────────────────────────────────────
+    DATABASE_PATH: str = _env("PROVOKE_DB_PATH", "index.db")
+
+    # ── Server ────────────────────────────────────────────────────────────
+    SERVER_HOST: str = _env("PROVOKE_HOST", "127.0.0.1")
+    SERVER_PORT: int = _env_int("PROVOKE_PORT", 4000)
+    SERVER_DEBUG: bool = True
+
+    # ── File Paths ────────────────────────────────────────────────────────
+    QUALITY_STATS_CSV: str = "quality_stats.csv"
+    REJECTED_URLS_LOG: str = "rejected_urls.log"
+    LABEL_CSV: str = "data/to_label.csv"
+    LABEL_DONE_CSV: str = "data/to_label_done.csv"
+    TRAINING_DATA_FILE: str = "data/training_data.txt"
+    TRAIN_SPLIT_FILE: str = "data/train.txt"
+    TEST_SPLIT_FILE: str = "data/test.txt"
+    DATA_DIR: str = "data"
+    MODELS_DIR: str = "models"
+
+    # ── HTTP / User-Agent ─────────────────────────────────────────────────
+    USER_AGENT: str = (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/91.0.4472.124 Safari/537.36"
+    )
+    USER_AGENT_SHORT: str = "Mozilla/5.0"
+    HTTP_TIMEOUT: int = 10  # Default timeout for HTTP requests (seconds)
+    CRAWLER_TIMEOUT: int = 5  # Timeout for crawler fetch requests (seconds)
+    DYNAMIC_PAGE_TIMEOUT: int = 30000  # Playwright page.goto timeout (ms)
+    DYNAMIC_RENDER_WAIT: float = 1.0  # Extra wait for SPA rendering (seconds)
+
+    # ── Crawler ───────────────────────────────────────────────────────────
+    CRAWLER_DEFAULT_MAX_DEPTH: int = 2
+    CRAWLER_POLITE_DELAY: float = 0.1  # Delay between crawled URLs (seconds)
+
+    # ── Quality Thresholds ────────────────────────────────────────────────
+    THRESHOLDS: dict = {
+        "min_text_ratio": 0.1,
+        "min_words": 100,
+        "max_words": 8000,
+        "corporate_score_threshold": 10,
+        "min_personal_signals_if_corporate": 3,
+        "ideal_readability_min": 60,
+        "ideal_readability_max": 80,
+        "min_readability": 20,
+        "max_readability": 100,
+        "domain_rejection_threshold": 30,
+        "consecutive_rejection_threshold": 25,
+        "unified_score_threshold": 40,
+    }
+
+    # ── ML Settings ───────────────────────────────────────────────────────
+    ML_CONFIG: dict = {
+        "enabled": True,
+        "model_path": "models/content_classifier.bin",
+        "high_confidence_threshold": 0.7,
+        "low_confidence_threshold": 0.3,
+        "use_for_uncertain_only": True,
+    }
+
+    # ML Training Hyper-parameters
+    ML_LEARNING_RATE: float = 0.7
+    ML_EPOCHS: int = 25
+    ML_WORD_NGRAMS: int = 2
+    ML_EMBEDDING_DIM: int = 100
+    ML_VERBOSE: int = 2
+    ML_TEST_RATIO: float = 0.25
+    ML_CONFIDENCE_THRESHOLD: float = 0.8  # For check_model_stats analysis
+
+    # ML Training Data Export
+    ML_EXPORT_LIMIT: int = 500
+    ML_EXPORT_DB_RATIO: float = 0.4  # 40% from DB, rest from rejected
+
+    # ── Excluded Title Patterns ───────────────────────────────────────────
+    EXCLUDED_TITLE_PATTERNS: list = [
+        r"privacy\s+policy",
+        r"terms\s+of\s+use",
+        r"terms\s+of\s+service",
+        r"legal\s+notice",
+        r"legal",
+        r"cookie\s+policy",
+        r"cookies",
+        r"^home\s*[-\|]",
+        r"\blogin\b",
+        r"\bsign\s+up\b",
+        r"\bsign\s+in\b",
+        r"\bregister\b",
+        r"auth",
+        r"about us",
+        r"release notes",
+        r"forum",
+        r"changelog",
+    ]
+
+    # ── Excluded URL Patterns ─────────────────────────────────────────────
+    EXCLUDED_URL_PATTERNS: list = [
+        r"/tag/",
+        r"/category/",
+        r"/categories/",
+        r"/search/",
+        r"/archive/",
+        r"/archives/",
+        r"/feed/",
+        r"/user/",
+        r"/users/",
+        r"/xmlrpc\.php",
+        r"/wp-json/",
+        r"\?p=\d+",
+        r"\?s=",
+        r"\?cat=",
+        r"\?tag=",
+    ]
+
+    # ── CTA / Marketing ───────────────────────────────────────────────────
+    CTA_PHRASES: list = [
+        "free trial",
+        "book a demo",
+        "contact sales",
+        "get started",
+        "request demo",
+        "schedule a call",
+        "talk to sales",
+        "release notes",
+    ]
+
+    MARKETING_TOOLS: list = [
+        "hubspot",
+        "marketo",
+        "pardot",
+        "clearbit",
+        "intercom",
+        "drift",
+        "calendly",
+        "6sense",
+    ]
+
+    # ── Ad Networks ───────────────────────────────────────────────────────
+    AD_NETWORKS: list = [
+        "doubleclick",
+        "adsense",
+        "taboola",
+        "outbrain",
+        "advertising.com",
+        "ad-server",
+        "googletagservices",
+        "googletagmanager",
+        "amazon-adsystem",
+        "adnxs",
+        "criteo",
+        "openx",
+        "rubiconproject",
+        "pubmatic",
+        "casalemedia",
+        "yieldmo",
+        "triplelift",
+        "indexww",
+        "adform",
+        "smartadserver",
+        "revcontent",
+        "mgid",
+        "buysellads",
+        "carbonads",
+        "media.net",
+        "adroll",
+    ]
+
+    # ── Tracking Scripts ──────────────────────────────────────────────────
+    TRACKING_SCRIPTS: list = [
+        r"fbq\(",
+        r"gtag\(",
+        r"pixel\.gif",
+        r"tracking",
+        r"quantserve",
+        r"scorecardresearch",
+        r"fullstory",
+        r"hotjar",
+        r"crazyegg",
+        r"mixpanel",
+        r"segment\.io",
+        r"amplitude",
+        r"pendo",
+        r"intercom-track",
+        r"drift-track",
+        r"luckyorange",
+    ]
+
+    # ── Ad Element Patterns ───────────────────────────────────────────────
+    AD_ELEMENT_PATTERNS: list = [
+        r"ad-slot",
+        r"ad-container",
+        r"ad-wrapper",
+        r"banner-ads",
+        r"sponsored-content",
+        r"promoted-item",
+        r"adsbygoogle",
+        r"gpt-ad",
+        r"dfp-ad",
+        r"native-ad",
+        r"sidebar-ad",
+        r"bottom-ad",
+    ]
+
+    # ── Personal Blog Signals ─────────────────────────────────────────────
+    PERSONAL_DOMAIN_KEYWORDS: list = [
+        "blog",
+        "personal",
+        "me",
+        "notes",
+        "thoughts",
+        "journal",
+    ]
+
+    # ── Binary Extensions (skip during crawl) ─────────────────────────────
+    BINARY_EXTENSIONS: set = {
+        # Images
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".bmp",
+        ".webp",
+        ".svg",
+        ".ico",
+        ".tiff",
+        # Video
+        ".mp4",
+        ".m4v",
+        ".mov",
+        ".avi",
+        ".wmv",
+        ".flv",
+        ".mkv",
+        ".webm",
+        ".mpg",
+        ".mpeg",
+        # Audio
+        ".mp3",
+        ".wav",
+        ".m4a",
+        ".ogg",
+        ".flac",
+        ".aac",
+        ".wma",
+        # Archives
+        ".zip",
+        ".rar",
+        ".7z",
+        ".tar",
+        ".gz",
+        ".bz2",
+        ".xz",
+        # Documents (excluding PDF)
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".ppt",
+        ".pptx",
+        ".rtf",
+        # System
+        ".exe",
+        ".dll",
+        ".so",
+        ".dmg",
+        ".iso",
+        ".bin",
+        ".msi",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Environment Overrides
+# ---------------------------------------------------------------------------
+
+
+class _DevelopmentConfig(_BaseConfig):
+    """Development-specific overrides (default)."""
+
+    ENV = "development"
+    SERVER_DEBUG = True
+
+
+class _ProductionConfig(_BaseConfig):
+    """Production-specific overrides."""
+
+    ENV = "production"
+    SERVER_DEBUG = False
+    ML_VERBOSE = 0
+
+
+# ---------------------------------------------------------------------------
+# Config Selector
+# ---------------------------------------------------------------------------
+
+_CONFIGS = {
+    "development": _DevelopmentConfig,
+    "production": _ProductionConfig,
+}
+
+_active_env = _env("PROVOKE_ENV", "development").lower()
+config: _BaseConfig = _CONFIGS.get(_active_env, _DevelopmentConfig)()
+
+# ---------------------------------------------------------------------------
+# Convenience re-exports (backwards compatibility with quality_config.py)
+# ---------------------------------------------------------------------------
+# These allow existing `from config import THRESHOLDS` style imports to work.
+
+THRESHOLDS = config.THRESHOLDS
+ML_CONFIG = config.ML_CONFIG
+EXCLUDED_TITLE_PATTERNS = config.EXCLUDED_TITLE_PATTERNS
+EXCLUDED_URL_PATTERNS = config.EXCLUDED_URL_PATTERNS
+CTA_PHRASES = config.CTA_PHRASES
+MARKETING_TOOLS = config.MARKETING_TOOLS
+AD_NETWORKS = config.AD_NETWORKS
+TRACKING_SCRIPTS = config.TRACKING_SCRIPTS
+AD_ELEMENT_PATTERNS = config.AD_ELEMENT_PATTERNS
+PERSONAL_DOMAIN_KEYWORDS = config.PERSONAL_DOMAIN_KEYWORDS
+BINARY_EXTENSIONS = config.BINARY_EXTENSIONS
+
+
+# ---------------------------------------------------------------------------
+# Quality Filter Logic (Moved from quality_filter.py)
+# ---------------------------------------------------------------------------
 
 # Common English stopwords to help identify natural language content
 STOPWORDS = {
@@ -171,7 +557,7 @@ def calculate_text_ratio(html_content: str) -> float:
     stopword_factor = min(1.1, max(0.2, stopword_density * 4))
 
     # Length Scaling: Moderate penalty for tiny snippets that look "dense" but lack substance.
-    min_words = THRESHOLDS.get("min_words", 100)
+    min_words = config.THRESHOLDS.get("min_words", 100)
     length_factor = min(1.0, max(0.1, word_count / (min_words * 0.8)))
 
     # Final adjusted ratio
@@ -193,21 +579,21 @@ def calculate_ad_score(html: str) -> int:
 
     # 1. Check for specific domains/networks (Width of tech)
     networks_found = 0
-    for network in AD_NETWORKS:
+    for network in config.AD_NETWORKS:
         if network in html_lower:
             networks_found += 1
             points += 10
 
     # 2. Check for tracking patterns
     trackers_found = 0
-    for pattern in TRACKING_SCRIPTS:
+    for pattern in config.TRACKING_SCRIPTS:
         if re.search(pattern, html_lower):
             trackers_found += 1
             points += 5
 
     # 3. Check for specific ad elements in HTML structure (Density of ads)
     # We count occurrences to detect "ad-stuffed" pages
-    for pattern in AD_ELEMENT_PATTERNS:
+    for pattern in config.AD_ELEMENT_PATTERNS:
         # We cap the regex matches to prevent huge counts from becoming astronomical
         matches = re.findall(pattern, html_lower)
         points += min(10, len(matches)) * 3
@@ -452,7 +838,7 @@ def check_page_title(html: str) -> str | None:
     # but let's stick to standard practice. Pattern is likely case-insensitive intent.
     # Actually, user wants robust matching. I'll use re.IGNORECASE.
 
-    for pattern in EXCLUDED_TITLE_PATTERNS:
+    for pattern in config.EXCLUDED_TITLE_PATTERNS:
         if re.search(pattern, title, re.IGNORECASE):
             return "Title matched common phrase"
     return None
@@ -521,24 +907,24 @@ def evaluate_page_quality(
     if is_whitelisted:
         is_acceptable = True
     else:
-        is_acceptable = unified_score >= THRESHOLDS["unified_score_threshold"]
+        is_acceptable = unified_score >= config.THRESHOLDS["unified_score_threshold"]
 
     # PHASE 3: ML Classification refinement (Kept for whitelisted domains)
-    from quality_config import ML_CONFIG
+    # Note: ML_CONFIG is now available as config.ML_CONFIG because we are in config.py
+    # But for compatibility we can look it up from config object or global if defined.
+    # config object is available globally in this file.
 
-    if ML_CONFIG.get("enabled", False):
+    if config.ML_CONFIG.get("enabled", False):
         from ml_classifier import get_classifier
 
         # We use ML if it's acceptable by rules, or if it's borderline, or if forced
         should_use_ml = True
-        if not force_ml and ML_CONFIG.get("use_for_uncertain_only", True):
+        if not force_ml and config.ML_CONFIG.get("use_for_uncertain_only", True):
             should_use_ml = unified_score < 80
 
         if should_use_ml:
             try:
-                classifier = get_classifier(
-                    ML_CONFIG.get("model_path", "models/content_classifier.bin")
-                )
+                classifier = get_classifier(config.ML_CONFIG["model_path"])
                 if classifier:
                     # Extract title for ML
                     soup = BeautifulSoup(html, "lxml")
@@ -548,8 +934,12 @@ def evaluate_page_quality(
                         text,
                         url=url,
                         title=page_title,
-                        high_threshold=ML_CONFIG.get("high_confidence_threshold", 0.7),
-                        low_threshold=ML_CONFIG.get("low_confidence_threshold", 0.3),
+                        high_threshold=config.ML_CONFIG.get(
+                            "high_confidence_threshold", 0.7
+                        ),
+                        low_threshold=config.ML_CONFIG.get(
+                            "low_confidence_threshold", 0.3
+                        ),
                     )
 
                     scores["ml_confidence"] = ml_confidence
@@ -572,13 +962,13 @@ def evaluate_page_quality(
         if not is_whitelisted:
             rejection_reasons.append(f"Unified quality score too low ({unified_score})")
 
-            if text_ratio < THRESHOLDS["min_text_ratio"]:
+            if text_ratio < config.THRESHOLDS["min_text_ratio"]:
                 rejection_reasons.append(
                     f"Text-to-HTML ratio too low ({text_ratio:.2f})"
                 )
             if (
-                readability < THRESHOLDS["min_readability"]
-                or readability > THRESHOLDS["max_readability"]
+                readability < config.THRESHOLDS["min_readability"]
+                or readability > config.THRESHOLDS["max_readability"]
             ):
                 rejection_reasons.append(
                     f"Readability score out of range ({readability:.1f})"
@@ -589,7 +979,9 @@ def evaluate_page_quality(
     # Unified Tier determination
     if unified_score >= 80:
         tier = "high"
-    elif unified_score >= THRESHOLDS["unified_score_threshold"] or is_whitelisted:
+    elif (
+        unified_score >= config.THRESHOLDS["unified_score_threshold"] or is_whitelisted
+    ):
         tier = "medium"
     else:
         tier = "low"

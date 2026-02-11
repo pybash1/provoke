@@ -6,11 +6,12 @@ import sys
 sys.path.append(os.getcwd())
 
 from ml_classifier import ContentClassifier
+from config import config
 
 
 def main():
-    db_path = "index.db"
-    model_path = "models/content_classifier.bin"
+    db_path = config.DATABASE_PATH
+    model_path = config.ML_CONFIG["model_path"]
 
     if not os.path.exists(db_path):
         print(f"Database not found at {db_path}")
@@ -56,7 +57,7 @@ def main():
 
     bad_urls = []
 
-    confidence_threshold = 0.8
+    confidence_threshold = config.ML_CONFIDENCE_THRESHOLD
 
     for url, title, content in rows:
         # Use predict method effectively used by the classifier

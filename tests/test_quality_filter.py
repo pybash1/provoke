@@ -1,5 +1,5 @@
 import unittest
-from quality_filter import evaluate_page_quality
+from config import evaluate_page_quality
 
 
 class TestQualityFilter(unittest.TestCase):

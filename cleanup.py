@@ -2,7 +2,7 @@ import sqlite3
 import os
 import requests
 from urllib.parse import urlparse
-from quality_filter import evaluate_page_quality
+from config import config, evaluate_page_quality
 
 
 def is_domain_blacklisted(domain, blacklist):
@@ -16,7 +16,7 @@ def is_domain_blacklisted(domain, blacklist):
 
 
 def cleanup_index():
-    db_file = "index.db"
+    db_file = config.DATABASE_PATH
     if not os.path.exists(db_file):
         print(f"Error: {db_file} not found.")
         return
@@ -68,7 +68,7 @@ def cleanup_index():
         if not current_html:
             print(f"  Fetching missing HTML for: {url}")
             try:
-                response = requests.get(url, timeout=10)
+                response = requests.get(url, timeout=config.HTTP_TIMEOUT)
                 if response.status_code == 200:
                     current_html = response.text
                     to_update_html.append((current_html, page_id))

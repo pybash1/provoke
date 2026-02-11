@@ -2,6 +2,7 @@ import fasttext
 import os
 import numpy as np
 from urllib.parse import urlparse
+from config import config
 
 # NumPy 2.0 Compatibility Patch for FastText
 _original_array = np.array
@@ -298,9 +299,11 @@ class ContentClassifier:
 _classifier = None
 
 
-def get_classifier(model_path: str = "models/content_classifier.bin"):
+def get_classifier(model_path: str | None = None):
     """Get or create global classifier instance."""
     global _classifier
+    if model_path is None:
+        model_path = str(config.ML_CONFIG["model_path"])
     if _classifier is None:
         try:
             _classifier = ContentClassifier(model_path)

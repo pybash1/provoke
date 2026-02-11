@@ -5,17 +5,18 @@ import time
 import os
 from urllib.parse import urljoin, urlparse
 import json
-from quality_filter import evaluate_page_quality
+from config import config, evaluate_page_quality
 from quality_logger import QualityLogger
-from quality_config import THRESHOLDS, BINARY_EXTENSIONS, EXCLUDED_URL_PATTERNS
 import re
 
 
 class SimpleCrawler:
-    def __init__(self, base_url, max_depth=2, db_file="index.db", use_dynamic=False):
+    def __init__(self, base_url, max_depth=None, db_file=None, use_dynamic=False):
         self.base_url = base_url
-        self.max_depth = max_depth
-        self.db_file = db_file
+        self.max_depth = (
+            max_depth if max_depth is not None else config.CRAWLER_DEFAULT_MAX_DEPTH
+        )
+        self.db_file = db_file or config.DATABASE_PATH
         self.use_dynamic = use_dynamic
         self.init_db()
         # visited tracks URLs in the CURRENT session to avoid infinite loops.
@@ -174,12 +175,12 @@ class SimpleCrawler:
         domain = parsed.netloc.lower()
         path = parsed.path.lower()
         # Allow other domains, but still require a netloc and ensure not already visited/blacklisted
-        # Also reject binary extensions listed in quality_config (except PDF)
-        if any(path.endswith(ext) for ext in BINARY_EXTENSIONS):
+        # Also reject binary extensions listed in config (except PDF)
+        if any(path.endswith(ext) for ext in config.BINARY_EXTENSIONS):
             return False
 
         # Reject based on URL patterns (tags, categories, etc.)
-        for pattern in EXCLUDED_URL_PATTERNS:
+        for pattern in config.EXCLUDED_URL_PATTERNS:
             if re.search(pattern, url, re.IGNORECASE):
                 return False
 
@@ -210,13 +211,15 @@ class SimpleCrawler:
                     print(f"Failed to start browser for {url}")
                     return
                 page = self.browser.new_page()
-                page.goto(url, wait_until="networkidle", timeout=30000)
+                page.goto(
+                    url, wait_until="networkidle", timeout=config.DYNAMIC_PAGE_TIMEOUT
+                )
                 # Wait a bit more for React/Vue to finish rendering if needed
-                time.sleep(1)
+                time.sleep(config.DYNAMIC_RENDER_WAIT)
                 html = page.content()
                 page.close()
             else:
-                response = requests.get(url, timeout=5)
+                response = requests.get(url, timeout=config.CRAWLER_TIMEOUT)
                 if response.status_code != 200:
                     return
                 html = response.text
@@ -261,7 +264,7 @@ class SimpleCrawler:
                 )
                 if (
                     self.domain_rejections[domain]
-                    >= THRESHOLDS["domain_rejection_threshold"]
+                    >= config.THRESHOLDS["domain_rejection_threshold"]
                 ):
                     self.blacklist_domain(domain)
 
@@ -270,7 +273,7 @@ class SimpleCrawler:
 
                 if (
                     self.consecutive_rejections
-                    >= THRESHOLDS["consecutive_rejection_threshold"]
+                    >= config.THRESHOLDS["consecutive_rejection_threshold"]
                 ):
                     print(
                         f"!!! GLOBAL consecutive rejection threshold hit ({self.consecutive_rejections}). Stopping crawl. !!!"
@@ -286,7 +289,7 @@ class SimpleCrawler:
                     next_url = urljoin(url, href)
                     if self.is_valid_url(next_url):
                         self.crawl(next_url, depth + 1)
-                        time.sleep(0.1)  # Polite crawling
+                        time.sleep(config.CRAWLER_POLITE_DELAY)  # Polite crawling
         except Exception as e:
             print(f"Error crawling {url}: {e}")
 

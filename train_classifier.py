@@ -10,6 +10,7 @@ Usage:
 
 import argparse
 import os
+from config import config
 from ml_data_prep import (
     export_indexed_pages,
     create_fasttext_training_file,
@@ -26,62 +27,69 @@ def main():
     )
     parser.add_argument("--train", action="store_true", help="Train model")
     parser.add_argument("--evaluate", action="store_true", help="Evaluate model")
-    parser.add_argument("--limit", type=int, default=500, help="Limit for export")
+    parser.add_argument(
+        "--limit", type=int, default=config.ML_EXPORT_LIMIT, help="Limit for export"
+    )
     args = parser.parse_args()
 
     # Ensure data and models directories exist
-    os.makedirs("data", exist_ok=True)
-    os.makedirs("models", exist_ok=True)
+    os.makedirs(config.DATA_DIR, exist_ok=True)
+    os.makedirs(config.MODELS_DIR, exist_ok=True)
+
+    model_path = config.ML_CONFIG["model_path"]
 
     if args.export:
         print(f"Exporting data for labeling (Total Limit: {args.limit})...")
 
         # 1. Clear existing to_label.csv if it exists to start fresh
-        if os.path.exists("data/to_label.csv"):
-            os.remove("data/to_label.csv")
+        if os.path.exists(config.LABEL_CSV):
+            os.remove(config.LABEL_CSV)
 
         # 2. Export indexed pages (potential good/bad mix from DB)
         # We'll take 40% from DB and 60% from rejected logs for a balanced mix
-        db_limit = int(args.limit * 0.4)
+        db_limit = int(args.limit * config.ML_EXPORT_DB_RATIO)
         rejected_limit = args.limit - db_limit
 
         print(f"Sampling {db_limit} pages from indexed content...")
-        export_indexed_pages("data/to_label.csv", limit=db_limit)
+        export_indexed_pages(config.LABEL_CSV, limit=db_limit)
 
         print(f"Sampling up to {rejected_limit} pages from rejected URLs...")
-        augment_from_rejected_urls("data/to_label.csv", limit=rejected_limit)
+        augment_from_rejected_urls(config.LABEL_CSV, limit=rejected_limit)
 
         print("\nNext steps:")
-        print("1. Open data/to_label.csv")
+        print(f"1. Open {config.LABEL_CSV}")
         print("2. Review and label the 'quality' column with 'good' or 'bad'")
         print("   (Note: Rejected URLs are pre-filled as 'bad')")
         print("3. Run: python train_classifier.py --train")
 
     elif args.train:
         print("Preparing training data...")
-        create_fasttext_training_file("data/to_label.csv", "data/training_data.txt")
+        create_fasttext_training_file(config.LABEL_CSV, config.TRAINING_DATA_FILE)
 
         split_training_data(
-            "data/training_data.txt", "data/train.txt", "data/test.txt", test_ratio=0.25
+            config.TRAINING_DATA_FILE,
+            config.TRAIN_SPLIT_FILE,
+            config.TEST_SPLIT_FILE,
+            test_ratio=config.ML_TEST_RATIO,
         )
 
         print("\nTraining model...")
         model = train_fasttext_model(
-            "data/train.txt",
-            "models/content_classifier.bin",
-            lr=0.5,
-            epoch=25,
-            wordNgrams=2,
+            config.TRAIN_SPLIT_FILE,
+            model_path,
+            lr=config.ML_LEARNING_RATE,
+            epoch=config.ML_EPOCHS,
+            wordNgrams=config.ML_WORD_NGRAMS,
         )
 
         if model:
             print("\nEvaluating on test set...")
-            evaluate_model("models/content_classifier.bin", "data/test.txt")
-            print("\nTraining complete! Model saved to models/content_classifier.bin")
+            evaluate_model(model_path, config.TEST_SPLIT_FILE)
+            print(f"\nTraining complete! Model saved to {model_path}")
 
     elif args.evaluate:
         print("Evaluating model...")
-        evaluate_model("models/content_classifier.bin", "data/test.txt")
+        evaluate_model(model_path, config.TEST_SPLIT_FILE)
     else:
         parser.print_help()
 
