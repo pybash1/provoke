@@ -7,3 +7,4 @@ venv/
 crawl_urls*.txt
 rejected_url*.log
 .DS_Store
+.pytest_cache/
