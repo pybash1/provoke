@@ -49,7 +49,7 @@ The main Flask web application for the Provoke Search Engine. It provides a sear
 To run the web app:
 
 ```bash
-python app.py
+uv run python app.py
 ```
 
 By default, it runs on `http://127.0.0.1:4000`.

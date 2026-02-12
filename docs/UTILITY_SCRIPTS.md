@@ -22,5 +22,5 @@ Runs the current model against the existing indexed database to find "uncertain"
 
 ## Configuration & Setup
 
-- `requirements.txt`: Python dependency list.
+- `pyproject.toml` & `uv.lock`: Project metadata and dependency management (using `uv`).
 - `.gitignore`: Version control exclusions.

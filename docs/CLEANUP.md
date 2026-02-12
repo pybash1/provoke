@@ -24,6 +24,12 @@ A storage maintenance script for purging invalid or low-quality pages from the d
 - `sqlite3`
 - `config` (replaces `quality_filter`)
 
+## Example
+
+```bash
+uv run python cleanup.py
+```
+
 ## Notes/Limitations
 
 - This script modifies the primary database. It is recommended to back up `index.db` before running.

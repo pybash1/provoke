@@ -17,7 +17,7 @@ A bash script for automated iterative training of the content classifier.
 ## Dependencies
 
 - `bash`
-- `python3`
+- `uv`: For running the python training script.
 - `grep`, `awk` (for parsing precision from output)
 - `train_classifier.py`
 

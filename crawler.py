@@ -335,7 +335,7 @@ if __name__ == "__main__":
     import os
 
     if len(sys.argv) < 2:
-        print("Usage: python crawler.py <url_or_file> [max_depth] [--dynamic]")
+        print("Usage: uv run python crawler.py <url_or_file> [max_depth] [--dynamic]")
         sys.exit(1)
 
     input_arg = sys.argv[1]

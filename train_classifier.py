@@ -3,9 +3,9 @@
 Training workflow for content quality classifier.
 
 Usage:
-    python train_classifier.py --export     # Export pages for labeling
-    python train_classifier.py --train      # Train model after labeling
-    python train_classifier.py --evaluate   # Evaluate model
+    uv run python train_classifier.py --export     # Export pages for labeling
+    uv run python train_classifier.py --train      # Train model after labeling
+    uv run python train_classifier.py --evaluate   # Evaluate model
 """
 
 import argparse
@@ -60,7 +60,7 @@ def main():
         print(f"1. Open {config.LABEL_CSV}")
         print("2. Review and label the 'quality' column with 'good' or 'bad'")
         print("   (Note: Rejected URLs are pre-filled as 'bad')")
-        print("3. Run: python train_classifier.py --train")
+        print("3. Run: uv run python train_classifier.py --train")
 
     elif args.train:
         print("Preparing training data...")

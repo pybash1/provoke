@@ -34,7 +34,7 @@ The core crawling engine that traverses the web, extracts content, and saves hig
 ### CLI Commands:
 
 ```bash
-python crawler.py <url_or_file> [max_depth] [--dynamic]
+uv run python crawler.py <url_or_file> [max_depth] [--dynamic]
 ```
 
 - **`<url_or_file>`**: A single URL or a path to a text file containing seed URLs.
@@ -55,13 +55,13 @@ python crawler.py <url_or_file> [max_depth] [--dynamic]
 Crawl a specific blog:
 
 ```bash
-python crawler.py https://example.com/blog 2
+uv run python crawler.py https://example.com/blog 2
 ```
 
 Crawl from a list of seeds with dynamic rendering:
 
 ```bash
-python crawler.py seeds.txt 1 --dynamic
+uv run python crawler.py seeds.txt 1 --dynamic
 ```
 
 ## Related

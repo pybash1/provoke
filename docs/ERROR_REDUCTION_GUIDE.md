@@ -36,8 +36,7 @@ Check the distribution:
 
 ```bash
 # Count labels in your training data
-source venv/bin/activate
-python -c "
+uv run python -c "
 import csv
 good = bad = 0
 with open('data/to_label_done.csv', 'r') as f:

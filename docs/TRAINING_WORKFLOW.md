@@ -17,9 +17,9 @@ The high-level CLI workflow for managing the lifecycle of the content classifier
 ### CLI Usage:
 
 ```bash
-python train_classifier.py --export [--limit N]
-python train_classifier.py --train
-python train_classifier.py --evaluate
+uv run python train_classifier.py --export [--limit N]
+uv run python train_classifier.py --train
+uv run python train_classifier.py --evaluate
 ```
 
 #### Commands:
@@ -43,12 +43,12 @@ python train_classifier.py --evaluate
 
 1.  **Export data**:
     ```bash
-    python train_classifier.py --export --limit 1000
+    uv run python train_classifier.py --export --limit 1000
     ```
 2.  **Manual Step**: Open `data/to_label.csv` and fill in the `quality` column (`good` or `bad`).
 3.  **Train Model**:
     ```bash
-    python train_classifier.py --train
+    uv run python train_classifier.py --train
     ```
 4.  **Verify**: Check the precision and F1 score output at the end of the training.
 
