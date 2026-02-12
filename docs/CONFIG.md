@@ -45,7 +45,21 @@ Critical numeric limits that determine what gets indexed:
 
 ## Core Logic Functions
 
-`config.py` implements the following quality assessment algorithms:
+`config.py` implements the following quality assessment algorithms via `evaluate_page_quality()`:
+
+### Rejection Reasons
+
+When a page fails quality checks, the system returns one or more of the following standardized rejection reasons:
+
+| Reason | Description |
+|--------|-------------|
+| `Corporate page` | Page detected as corporate/commercial. Two thresholds apply:<br>- **Immediate rejection**: Corporate score > 80 (hard corporate/e-commerce)<br>- **Standard rejection**: Corporate score >= 10 (in final quality check) |
+| `ML classified as low quality` | ML model flagged content as low quality (simplified message) |
+| `Unified quality score too low (X)` | Combined heuristic score below threshold (default: 40) |
+| `Text-to-HTML ratio too low (X)` | Content density below minimum threshold (default: 0.1) |
+| `Readability score out of range (X)` | Flesch Reading Ease outside acceptable bounds (20-100) |
+
+Note: Corporate-related rejections are consolidated under a single "Corporate page" reason.
 
 ### `calculate_text_ratio(html_content)`
 

@@ -20,7 +20,7 @@
 
 ```bash
 # Export more data focusing on borderline cases
-python train_classifier.py --export --limit 1000
+python -m provoke.ml.trainer --export --limit 1000
 ```
 
 **Action items:**
@@ -54,7 +54,7 @@ print(f'Good: {good}, Bad: {bad}, Ratio: {good/bad:.2f}')
 
 ### 2. **Tune Model Hyperparameters**
 
-Create a script to test different parameters (see `ml_train.py` for variables):
+Create a script to test different parameters (see `provoke/ml/training.py` for variables):
 
 **Key parameters to adjust:**
 
@@ -126,7 +126,7 @@ def extract_title_features(title):
 
 ### 5. **Ensemble Methods**
 
-Combine multiple signals (as done in `ml_classifier.py`'s `enhanced_check`):
+Combine multiple signals (as done in `provoke/ml/classifier.py`'s `enhanced_check`):
 
 ```python
 def ensemble_classify(url, title, content):
@@ -161,7 +161,7 @@ Focus on uncertain predictions:
 
 **Workflow:**
 
-1. Run `check_model_stats.py` on unlabeled data in the index.
+1. Run `provoke/utils/model_stats.py` on unlabeled data in the index.
 2. Export low-confidence predictions.
 3. Manually label these.
 4. Retrain model.
@@ -173,7 +173,7 @@ Focus on uncertain predictions:
 
 #### For False Positives (Bad→Good):
 
-Most are **homepages** or **index pages**. Add rules to `calculate_corporate_score` in `config.py` or filters in `landing_page_filter.py`.
+Most are **homepages** or **index pages**. Add rules to `calculate_corporate_score` in `config.py` or filters in `provoke/utils/landing_page.py`.
 
 #### For False Negatives (Good→Bad):
 
@@ -209,7 +209,7 @@ Most are **RSS feeds** or **minimal pages**. Add exceptions for known good struc
 
 ## Monitoring
 
-Track these metrics over time using `check_model_stats.py`.
+Track these metrics over time using `provoke/utils/model_stats.py`.
 
 **Goal:**
 

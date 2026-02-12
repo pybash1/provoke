@@ -1,4 +1,4 @@
-# ML Training (`ml_train.py`)
+# ML Training (`provoke/ml/training.py`)
 
 ## Summary
 
@@ -6,7 +6,7 @@ The training and evaluation module for the FastText content classifier.
 
 ## Description
 
-`ml_train.py` contains the logic for training a supervised FastText model and evaluating its performance on a held-out test set. It provides detailed metrics including Precision, Recall, and F1 Score, along with a confusion matrix and URL-level error analysis.
+`provoke/ml/training.py` contains the logic for training a supervised FastText model and evaluating its performance on a held-out test set. It provides detailed metrics including Precision, Recall, and F1 Score, along with a confusion matrix and URL-level error analysis.
 
 ### Training Features:
 
@@ -51,7 +51,7 @@ Evaluates an existing model.
 Training a model via script:
 
 ```python
-from ml_train import train_fasttext_model, evaluate_model
+from provoke.ml.training import train_fasttext_model, evaluate_model
 
 train_fasttext_model("data/train.txt", "models/content_classifier.bin")
 evaluate_model("models/content_classifier.bin", "data/test.txt")

@@ -1,4 +1,4 @@
-# ML Training Workflow (`train_classifier.py`)
+# ML Training Workflow (`provoke/ml/trainer.py`)
 
 ## Summary
 
@@ -6,10 +6,10 @@ The high-level CLI workflow for managing the lifecycle of the content classifier
 
 ## Description
 
-`train_classifier.py` orchestrates the process of creating a custom machine learning model for content quality. It provides a three-step workflow:
+`provoke/ml/trainer.py` orchestrates the process of creating a custom machine learning model for content quality. It provides a three-step workflow:
 
-1.  **Export**: Gathers URLs from the index and rejected logs (via `ml_data_prep.py`) for manual labeling.
-2.  **Train**: Converts labeled CSV data into FastText format, splits it into training/test sets, and trains the model (via `ml_train.py`).
+1.  **Export**: Gathers URLs from the index and rejected logs (via `provoke/ml/data_prep.py`) for manual labeling.
+2.  **Train**: Converts labeled CSV data into FastText format, splits it into training/test sets, and trains the model (via `provoke/ml/training.py`).
 3.  **Evaluate**: Runs the trained model against a test set to determine accuracy.
 
 ## Public API / Interfaces
@@ -17,9 +17,9 @@ The high-level CLI workflow for managing the lifecycle of the content classifier
 ### CLI Usage:
 
 ```bash
-uv run python train_classifier.py --export [--limit N]
-uv run python train_classifier.py --train
-uv run python train_classifier.py --evaluate
+uv run python -m provoke.ml.trainer --export [--limit N]
+uv run python -m provoke.ml.trainer --train
+uv run python -m provoke.ml.trainer --evaluate
 ```
 
 #### Commands:
@@ -33,8 +33,8 @@ uv run python train_classifier.py --evaluate
 
 ## Dependencies
 
-- `ml_data_prep`: For data manipulation and file generation.
-- `ml_train`: For core FastText training and evaluation.
+- `provoke.ml.data_prep`: For data manipulation and file generation.
+- `provoke.ml.training`: For core FastText training and evaluation.
 - `config`: For file paths and configuration.
 
 ## Examples
@@ -43,12 +43,12 @@ uv run python train_classifier.py --evaluate
 
 1.  **Export data**:
     ```bash
-    uv run python train_classifier.py --export --limit 1000
+    uv run python -m provoke.ml.trainer --export --limit 1000
     ```
 2.  **Manual Step**: Open `data/to_label.csv` and fill in the `quality` column (`good` or `bad`).
 3.  **Train Model**:
     ```bash
-    uv run python train_classifier.py --train
+    uv run python -m provoke.ml.trainer --train
     ```
 4.  **Verify**: Check the precision and F1 score output at the end of the training.
 

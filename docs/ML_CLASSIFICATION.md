@@ -1,4 +1,4 @@
-# ML Classifier (`ml_classifier.py`)
+# ML Classifier (`provoke/ml/classifier.py`)
 
 ## Summary
 
@@ -6,7 +6,7 @@ The machine learning module that classifies web content as 'good' (article/blog)
 
 ## Description
 
-`ml_classifier.py` provides an "enhanced check" system that combines raw machine learning predictions with rule-based heuristics. This hybrid approach helps reduce common ML errors, such as misclassifying homepages as high-quality content or overlooking short but valuable personal blog posts.
+`provoke/ml/classifier.py` provides an "enhanced check" system that combines raw machine learning predictions with rule-based heuristics. This hybrid approach helps reduce common ML errors, such as misclassifying homepages as high-quality content or overlooking short but valuable personal blog posts.
 
 ### Features:
 
@@ -43,7 +43,7 @@ The machine learning module that classifies web content as 'good' (article/blog)
 Using the classifier programmatically:
 
 ```python
-from ml_classifier import get_classifier
+from provoke.ml.classifier import get_classifier
 
 clf = get_classifier("models/content_classifier.bin")
 if clf:

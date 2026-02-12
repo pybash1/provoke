@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual Page Insertion | Provoke Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bg: '#0a0a0c',
+                        surface: '#121217',
+                        primary: '#6366f1',
+                        secondary: '#ec4899',
+                        success: '#10b981',
+                        danger: '#ef4444',
+                        warning: '#f59e0b',
+                        'text-dim': '#94a3b8',
+                        border: 'rgba(255, 255, 255, 0.08)',
+                        glass: 'rgba(255, 255, 255, 0.03)',
+                    },
+                    fontFamily: {
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                },
+            },
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer base {
+            body {
+                @apply bg-bg text-[#e2e8f0] font-mono leading-relaxed min-h-screen p-8;
+            }
+            * {
+                @apply rounded-none;
+            }
+        }
+        @layer components {
+            .section-box {
+                @apply bg-surface border border-border p-8 max-w-2xl mx-auto mt-12;
+            }
+            .btn-primary {
+                @apply bg-primary text-white px-6 py-3 font-semibold cursor-pointer transition-all duration-200 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed;
+            }
+            .btn-secondary {
+                @apply bg-white/5 text-white px-6 py-3 font-semibold cursor-pointer transition-all duration-200 hover:bg-white/10;
+            }
+            .btn-danger {
+                @apply bg-danger text-white px-6 py-3 font-semibold cursor-pointer transition-all duration-200 hover:brightness-110;
+            }
+            .input-field {
+                @apply bg-bg border border-border px-4 py-3 text-white font-mono outline-none focus:border-primary w-full;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="max-w-[1400px] mx-auto">
+        <header class="flex justify-between items-center mb-12">
+            <div>
+                <a href="/admin" class="text-primary hover:underline text-sm mb-2 block">← Back to Dashboard</a>
+                <h1 class="text-4xl font-bold tracking-tight text-white">Manual Insert</h1>
+            </div>
+        </header>
+
+        {% if error %}
+        <div class="max-w-2xl mx-auto mb-6 p-4 bg-danger/10 border border-danger text-danger">
+            <strong>Error:</strong> {{ error }}
+        </div>
+        {% endif %}
+
+        {% if warning %}
+        <div class="max-w-2xl mx-auto mb-6 p-6 bg-warning/10 border border-warning">
+            <h3 class="text-warning font-bold text-lg mb-2">⚠ ML Model Warning</h3>
+            <p class="text-white mb-4">
+                The ML model has flagged this page as <strong>{{ warning.label }}</strong>
+                (Confidence: {{ (warning.confidence * 100)|round(1) }}%).
+            </p>
+            <p class="text-text-dim text-sm mb-6">
+                Are you sure you want to add this to the database anyway? It will bypass all quality filters.
+            </p>
+            <form action="/admin/manual_insert" method="POST">
+                <input type="hidden" name="url" value="{{ url }}">
+                <input type="hidden" name="confirmed" value="true">
+                <div class="flex gap-4">
+                    <button type="submit" class="btn-danger">Yes, Insert Anyway</button>
+                    <a href="/admin/manual_insert" class="btn-secondary text-center">Cancel</a>
+                </div>
+            </form>
+        </div>
+        {% else %}
+
+        <div class="section-box">
+            <h2 class="text-xl font-semibold mb-6">Manually Add URL</h2>
+            <p class="text-text-dim text-sm mb-8 leading-relaxed">
+                Manually fetch and index a page, bypassing all standard quality filters.
+                The ML model will still be run for assessment, and you'll be prompted for confirmation if it flags the
+                content as low quality.
+            </p>
+
+            <form action="/admin/manual_insert" method="POST" class="space-y-6">
+                <div>
+                    <label for="url" class="block text-xs font-bold text-text-dim uppercase tracking-widest mb-2">Page
+                        URL</label>
+                    <input type="url" id="url" name="url" placeholder="https://example.com/great-article"
+                        class="input-field" required>
+                </div>
+
+                <div class="pt-4">
+                    <button type="submit" class="btn-primary w-full">Fetch & Process URL</button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</body>
+
+</html>

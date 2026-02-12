@@ -879,7 +879,7 @@ def evaluate_page_quality(
         if corp_score > 80:
             return {
                 "is_acceptable": False,
-                "rejection_reasons": ["Corporate Page"],
+                "rejection_reasons": ["Corporate page"],
                 "scores": {"corporate_score": corp_score},
                 "quality_tier": "rejected",
             }
@@ -951,9 +951,7 @@ def evaluate_page_quality(
                             is_acceptable = True
                     else:
                         is_acceptable = False
-                        rejection_reasons.append(
-                            f"ML classified as low quality ({ml_reason})"
-                        )
+                        rejection_reasons.append("ML classified as low quality")
             except Exception:
                 pass
 
@@ -974,7 +972,7 @@ def evaluate_page_quality(
                     f"Readability score out of range ({readability:.1f})"
                 )
             if corp_score >= 10:
-                rejection_reasons.append("Likely corporate marketing")
+                rejection_reasons.append("Corporate page")
 
     # Unified Tier determination
     if unified_score >= 80:

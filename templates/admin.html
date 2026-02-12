@@ -79,8 +79,19 @@
                     class="font-semibold text-text-dim hover:text-white transition-colors text-sm">Manage Lists</a>
                 <a href="/admin/label"
                     class="font-semibold text-text-dim hover:text-white transition-colors text-sm">Data Labeler</a>
+                <a href="/admin/manual_insert"
+                    class="font-semibold text-white px-3 py-1 bg-primary/20 hover:bg-primary/30 transition-all text-sm border border-primary/30">Manual
+                    Insert</a>
             </nav>
         </header>
+
+        {% if request.args.get('success') %}
+        <div
+            class="mb-8 p-4 bg-success/10 border border-success text-success text-sm font-bold flex justify-between items-center">
+            <span>{{ request.args.get('success') }}</span>
+            <button onclick="this.parentElement.remove()" class="text-success hover:brightness-125">✕</button>
+        </div>
+        {% endif %}
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-12">
             <div class="stat-card">
@@ -255,7 +266,8 @@
                             <td class="p-3">
                                 <div class="font-semibold text-[0.85rem] mb-0.5">
                                     <a href="{{ page.url }}" target="_blank"
-                                        class="text-white no-underline hover:text-primary line-clamp-1">{{ page.title or 'Untitled'
+                                        class="text-white no-underline hover:text-primary line-clamp-1">{{ page.title or
+                                        'Untitled'
                                         }}</a>
                                 </div>
                                 <div

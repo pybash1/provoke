@@ -1,4 +1,4 @@
-# Quality Logging (`quality_logger.py`)
+# Quality Logging (`provoke/utils/logger.py`)
 
 ## Summary
 
@@ -32,7 +32,7 @@ A logging utility for tracking crawler performance, specifically focusing on pag
 
 ## Notes/Limitations
 
-- The `quality_stats.csv` file is a critical source for building the `to_label.csv` dataset via `ml_data_prep.py`.
+- The `quality_stats.csv` file is a critical source for building the `to_label.csv` dataset via `provoke/ml/data_prep.py`.
 
 ## Related
 

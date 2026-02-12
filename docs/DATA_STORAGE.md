@@ -15,5 +15,5 @@ The `data/` directory stores all persistent datasets, including manual labels, l
 
 ## Related Documentation
 
-- [DATA_MANAGEMENT.md](DATA_MANAGEMENT.md): Documentation for `ml_data_prep.py`.
-- [TRAINING_WORKFLOW.md](TRAINING_WORKFLOW.md): Documentation for `train_classifier.py`.
+- [DATA_MANAGEMENT.md](DATA_MANAGEMENT.md): Documentation for `provoke/ml/data_prep.py`.
+- [TRAINING_WORKFLOW.md](TRAINING_WORKFLOW.md): Documentation for `provoke/ml/trainer.py`.

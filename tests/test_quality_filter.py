@@ -87,7 +87,7 @@ class TestQualityFilter(unittest.TestCase):
 
         result = evaluate_page_quality(url, html, text)
         self.assertFalse(result["is_acceptable"], "Should reject corporate marketing")
-        self.assertIn("Likely corporate marketing", str(result["rejection_reasons"]))
+        self.assertIn("Corporate page", str(result["rejection_reasons"]))
 
     def test_low_text_ratio(self):
         url = "https://example.com/gallery"

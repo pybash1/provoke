@@ -6,7 +6,7 @@ A bash script for automated iterative training of the content classifier.
 
 ## Description
 
-`train_until_ready.sh` is designed to reach a high precision model by repeatedly running the training process. It parses the output of `train_classifier.py --train` to extract the precision score and continues until it hits the `TARGET_PRECISION` (default 0.998).
+`train_until_ready.sh` is designed to reach a high precision model by repeatedly running the training process. It parses the output of `provoke/ml/trainer.py --train` to extract the precision score and continues until it hits the `TARGET_PRECISION` (default 0.998).
 
 ## Usage
 
@@ -19,7 +19,7 @@ A bash script for automated iterative training of the content classifier.
 - `bash`
 - `uv`: For running the python training script.
 - `grep`, `awk` (for parsing precision from output)
-- `train_classifier.py`
+- `provoke/ml/trainer.py`
 
 ## Notes
 

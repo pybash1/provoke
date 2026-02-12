@@ -64,6 +64,25 @@
             content: '↓';
             @apply absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-text-dim text-xs font-bold;
         }
+
+        /* Custom scrollbar for sidebar */
+        aside::-webkit-scrollbar {
+            width: 6px;
+        }
+        aside::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        aside::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+        }
+        aside::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+        aside {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.15) rgba(255, 255, 255, 0.02);
+        }
     </style>
 </head>
 
@@ -78,7 +97,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
             <!-- Sidebar -->
             <aside
-                class="lg:col-span-1 space-y-1 max-h-[calc(100vh-160px)] overflow-y-auto overflow-x-hidden pr-2 border-r border-border/50 sticky top-8">
+                class="lg:col-span-1 space-y-1 max-h-[calc(100vh-160px)] overflow-y-auto overflow-x-hidden pr-2 sticky top-8">
                 <h3 class="text-xs font-bold text-text-dim uppercase tracking-widest mb-4 px-3">Domains ({{
                     domains|length }})</h3>
                 {% for domain in domains %}

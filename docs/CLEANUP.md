@@ -1,4 +1,4 @@
-# cleanup.py
+# provoke/utils/cleanup.py
 
 ## Summary
 
@@ -6,7 +6,7 @@ A storage maintenance script for purging invalid or low-quality pages from the d
 
 ## Description
 
-`cleanup.py` scans the `pages` table in `index.db` and applies current filtering rules to existing entries. This is useful when:
+`provoke/utils/cleanup.py` scans the `pages` table in `index.db` and applies current filtering rules to existing entries. This is useful when:
 
 1.  A new domain has been blacklisted.
 2.  Quality thresholds in `config.py` have been tightened.
@@ -27,7 +27,7 @@ A storage maintenance script for purging invalid or low-quality pages from the d
 ## Example
 
 ```bash
-uv run python cleanup.py
+uv run python -m provoke.utils.cleanup
 ```
 
 ## Notes/Limitations

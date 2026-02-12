@@ -511,6 +511,66 @@ def admin_crawl():
     return Response(stream_with_context(generate()), mimetype="text/plain")
 
 
+@app.route("/admin/manual_insert", methods=["GET", "POST"])
+def manual_insert():
+    import requests
+    from bs4 import BeautifulSoup
+    from ml_classifier import get_classifier
+
+    if request.method == "GET":
+        return render_template("manual_insert.html")
+
+    url = request.form.get("url", "").strip()
+    confirmed = request.form.get("confirmed") == "true"
+
+    if not url:
+        return render_template("manual_insert.html", error="URL is required")
+
+    try:
+        # 1. Fetch
+        headers = {"User-Agent": config.USER_AGENT}
+        response = requests.get(url, timeout=config.HTTP_TIMEOUT, headers=headers)
+        response.raise_for_status()
+        html = response.text
+
+        # 2. Extract
+        soup = BeautifulSoup(html, "html.parser")
+        title_tag = soup.title.string if soup.title else None
+        title = (title_tag or url).strip()
+        text = soup.get_text(separator=" ", strip=True)
+
+        # 3. Check ML if not already confirmed
+        if not confirmed and config.ML_CONFIG.get("enabled", False):
+            classifier = get_classifier(config.ML_CONFIG["model_path"])
+            if classifier:
+                label, confidence = classifier.predict(text, url=url, title=title)
+                if label == "bad" and confidence > config.ML_CONFIG.get(
+                    "low_confidence_threshold", 0.3
+                ):
+                    return render_template(
+                        "manual_insert.html",
+                        url=url,
+                        warning={"label": label, "confidence": float(confidence)},
+                    )
+
+        # 4. Save to DB
+        conn = sqlite3.connect(config.DATABASE_PATH)
+        cursor = conn.cursor()
+
+        # We manually set quality_tier to 'manual' to distinguish.
+        cursor.execute(
+            "INSERT OR REPLACE INTO pages (url, title, content, html, quality_score, quality_tier) VALUES (?, ?, ?, ?, ?, ?)",
+            (url, title, text, html, 0, "manual"),
+        )
+        conn.commit()
+        conn.close()
+
+        return redirect(url_for("admin", success=f"Successfully inserted {url}"))
+
+    except Exception as e:
+        return render_template("manual_insert.html", error=str(e), url=url)
+
+
 @app.route("/admin/label")
 def label_ui():
     csv_path = config.LABEL_CSV

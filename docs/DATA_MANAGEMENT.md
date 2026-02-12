@@ -1,4 +1,4 @@
-# ML Data Preparation (`ml_data_prep.py`)
+# ML Data Preparation (`provoke/ml/data_prep.py`)
 
 ## Summary
 
@@ -6,7 +6,7 @@ Utility module for managing machine learning datasets, including exporting data 
 
 ## Description
 
-`ml_data_prep.py` provides the glue between the search index (SQLite), the crawler logs, and the ML training process. It handles the extraction of data from various sources to create a balanced labeling set and ensures the final training file is correctly formatted for FastText.
+`provoke/ml/data_prep.py` provides the glue between the search index (SQLite), the crawler logs, and the ML training process. It handles the extraction of data from various sources to create a balanced labeling set and ensures the final training file is correctly formatted for FastText.
 
 ### Key Data Operations:
 

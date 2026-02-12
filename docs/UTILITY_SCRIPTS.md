@@ -12,11 +12,11 @@ Documentation for `train_until_ready.sh`, a shell script that loops training unt
 
 ### [CLEANUP.md](CLEANUP.md)
 
-Documentation for `cleanup.py`, which purges invalid or low-quality pages from the database based on current `config` rules.
+Documentation for `provoke/utils/cleanup.py`, which purges invalid or low-quality pages from the database based on current `config` rules.
 
 ## Diagnostics
 
-### `check_model_stats.py`
+### `provoke/utils/model_stats.py`
 
 Runs the current model against the existing indexed database to find "uncertain" pages or potential misclassifications. It helps in auditing the model's performance on live data.
 

@@ -48,7 +48,7 @@ uv run python crawler.py <url_or_file> [max_depth] [--dynamic]
 - `sqlite3`: Data storage.
 - `playwright`: (Optional) Dynamic rendering.
 - `config`: Central configuration and quality evaluation logic.
-- `quality_logger`: Stats tracking.
+- `provoke.utils.logger`: Stats tracking.
 
 ## Examples
 
