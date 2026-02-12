@@ -1,4 +1,4 @@
-# Web App (`app.py`)
+# Web App (`provoke/web/app.py`)
 
 ## Summary
 
@@ -6,7 +6,7 @@ The main Flask web application for the Provoke Search Engine. It provides a sear
 
 ## Description
 
-`app.py` serves as the front-end and administrative hub. It integrates with the `SearchEngine` from `indexer.py` for search functionality and interacts directly with `index.db` to manage pages and domain lists. The admin dashboard provides real-time insights into indexed pages, rejection statistics, and labeling progress.
+`provoke/web/app.py` serves as the front-end and administrative hub. It integrates with the `SearchEngine` from `provoke.indexer` for search functionality and interacts directly with `index.db` to manage pages and domain lists. The admin dashboard provides real-time insights into indexed pages, rejection statistics, and labeling progress.
 
 ### Flow:
 
@@ -49,8 +49,8 @@ The manual insert feature (`/admin/manual_insert`) allows administrators to forc
 
 - `Flask`: Web framework.
 - `sqlite3`: Database interaction.
-- `indexer.SearchEngine`: Core search functionality.
-- `config`: Central configuration & quality logic.
+- `provoke.indexer.SearchEngine`: Core search functionality.
+- `provoke.config`: Central configuration & quality logic.
 - `BeautifulSoup`: For basic HTML parsing in dry-runs.
 - `requests`: For fetching URLs in dry-runs.
 - `subprocess`: For running the crawler from the UI.
@@ -60,7 +60,7 @@ The manual insert feature (`/admin/manual_insert`) allows administrators to forc
 To run the web app:
 
 ```bash
-uv run python app.py
+uv run python provoke/web/app.py
 ```
 
 By default, it runs on `http://127.0.0.1:4000`.

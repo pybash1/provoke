@@ -11,7 +11,7 @@ while true; do
     echo "⏳ Training model..."
     
     # Run the training script and capture its output
-    OUTPUT=$(uv run python train_classifier.py --train 2>&1)
+    OUTPUT=$(uv run python -m provoke.ml.trainer --train 2>&1)
     
     # Store output to a temporary file for better debugging if needed
     echo "$OUTPUT"
@@ -22,7 +22,7 @@ while true; do
     
     if [ -z "$PRECISION" ]; then
         echo "❌ Error: Could not extract precision from output."
-        echo "Make sure uv run python train_classifier.py --train is working correctly."
+        echo "Make sure 'uv run python -m provoke.ml.trainer --train' is working correctly."
         exit 1
     fi
     

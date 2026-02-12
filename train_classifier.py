@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Training workflow for content quality classifier.
+Backward-compatible shim for provoke.ml.trainer
 
-This is a backward-compatible wrapper that delegates to provoke.ml.trainer.
+The training workflow has moved to the provoke package.
+This file is maintained for backward compatibility.
 
 Usage:
-    uv run python train_classifier.py --export     # Export pages for labeling
-    uv run python train_classifier.py --train      # Train model after labeling
-    uv run python train_classifier.py --evaluate   # Evaluate model
+    uv run python train_classifier.py --export
+    uv run python train_classifier.py --train
+    uv run python train_classifier.py --evaluate
 """
 
 from provoke.ml.trainer import main

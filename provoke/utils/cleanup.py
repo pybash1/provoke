@@ -2,7 +2,7 @@ import sqlite3
 import os
 import requests
 from urllib.parse import urlparse
-from config import config, evaluate_page_quality
+from provoke.config import config, evaluate_page_quality
 
 
 def is_domain_blacklisted(domain, blacklist):

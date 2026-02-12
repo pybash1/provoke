@@ -4,7 +4,7 @@ import random
 import os
 import requests
 from bs4 import BeautifulSoup
-from config import config
+from provoke.config import config
 
 DB_PATH = config.DATABASE_PATH
 

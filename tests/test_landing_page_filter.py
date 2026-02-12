@@ -1,5 +1,5 @@
 import unittest
-from landing_page_filter import (
+from provoke.utils.landing_page import (
     is_service_landing_page,
     is_ecommerce_page,
     is_homepage_not_article,

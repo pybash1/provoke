@@ -1,5 +1,5 @@
 import unittest
-from config import evaluate_page_quality
+from provoke.config import evaluate_page_quality
 
 
 class TestQualityFilter(unittest.TestCase):

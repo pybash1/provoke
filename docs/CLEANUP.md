@@ -21,8 +21,9 @@ A storage maintenance script for purging invalid or low-quality pages from the d
 
 ## Dependencies
 
-- `sqlite3`
-- `config` (replaces `quality_filter`)
+- `sqlite3`: Database operations
+- `provoke.config`: Quality evaluation logic and configuration paths
+- `requests`: For re-fetching pages that are missing HTML content
 
 ## Example
 

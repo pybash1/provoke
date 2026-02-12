@@ -106,7 +106,7 @@ Synthesizes individual metrics into a final decision score.
 Import `config` to access settings or functions:
 
 ```python
-from config import config, calculate_unified_score
+from provoke.config import config, calculate_unified_score
 
 # Access a setting
 db_path = config.DATABASE_PATH

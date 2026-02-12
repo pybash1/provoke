@@ -40,7 +40,7 @@ Splits the formatted text file into two parts for training and evaluation.
 - `sqlite3`: To fetch indexed content.
 - `requests` & `BeautifulSoup`: To fetch metadata for rejected URLs during augmentation.
 - `csv`: For managing the labeling files.
-- `config`: For file paths.
+- `provoke.config`: For file paths.
 
 ## Notes/Limitations
 

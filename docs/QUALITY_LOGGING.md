@@ -28,7 +28,7 @@ A logging utility for tracking crawler performance, specifically focusing on pag
 
 - `logging`: Python standard library for text logs.
 - `csv`: For managing the stats file.
-- `config`: For file paths.
+- `provoke.config`: For file paths.
 
 ## Notes/Limitations
 

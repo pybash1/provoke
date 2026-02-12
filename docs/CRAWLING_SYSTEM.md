@@ -34,7 +34,7 @@ The core crawling engine that traverses the web, extracts content, and saves hig
 ### CLI Commands:
 
 ```bash
-uv run python crawler.py <url_or_file> [max_depth] [--dynamic]
+uv run python provoke/crawler.py <url_or_file> [max_depth] [--dynamic]
 ```
 
 - **`<url_or_file>`**: A single URL or a path to a text file containing seed URLs.
@@ -47,7 +47,7 @@ uv run python crawler.py <url_or_file> [max_depth] [--dynamic]
 - `BeautifulSoup`: HTML parsing.
 - `sqlite3`: Data storage.
 - `playwright`: (Optional) Dynamic rendering.
-- `config`: Central configuration and quality evaluation logic.
+- `provoke.config`: Central configuration and quality evaluation logic.
 - `provoke.utils.logger`: Stats tracking.
 
 ## Examples
@@ -55,13 +55,13 @@ uv run python crawler.py <url_or_file> [max_depth] [--dynamic]
 Crawl a specific blog:
 
 ```bash
-uv run python crawler.py https://example.com/blog 2
+uv run python provoke/crawler.py https://example.com/blog 2
 ```
 
 Crawl from a list of seeds with dynamic rendering:
 
 ```bash
-uv run python crawler.py seeds.txt 1 --dynamic
+uv run python provoke/crawler.py seeds.txt 1 --dynamic
 ```
 
 ## Related

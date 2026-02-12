@@ -2,7 +2,7 @@ import csv
 import os
 import logging
 from datetime import datetime
-from config import config
+from provoke.config import config
 
 
 class QualityLogger:

@@ -1,4 +1,4 @@
-# Search Engine (`indexer.py`)
+# Search Engine (`provoke/indexer.py`)
 
 ## Summary
 
@@ -28,20 +28,20 @@ The search engine module that provides full-text and fuzzy search capabilities o
 ### CLI Command:
 
 ```bash
-python indexer.py "<query>"
+uv run python provoke/indexer.py "<query>"
 ```
 
 Example:
 
 ```bash
-python indexer.py "python web scraping"
+uv run python provoke/indexer.py "python web scraping"
 ```
 
 ## Dependencies
 
 - `sqlite3`: Core database and FTS engine.
 - `difflib`: For fuzzy string matching.
-- `config`: For database path configuration.
+- `provoke.config`: For database path configuration.
 
 ## Notes/Limitations
 

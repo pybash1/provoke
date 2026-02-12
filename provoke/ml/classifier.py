@@ -2,7 +2,7 @@ import fasttext
 import os
 import numpy as np
 from urllib.parse import urlparse
-from config import config
+from provoke.config import config
 
 # NumPy 2.0 Compatibility Patch for FastText
 _original_array = np.array

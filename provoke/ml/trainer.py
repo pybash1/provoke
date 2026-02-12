@@ -10,7 +10,7 @@ Usage:
 
 import argparse
 import os
-from config import config
+from provoke.config import config
 from provoke.ml.data_prep import (
     export_indexed_pages,
     create_fasttext_training_file,

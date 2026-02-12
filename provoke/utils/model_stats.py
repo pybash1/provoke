@@ -1,12 +1,8 @@
 import sqlite3
 import os
-import sys
 
-# Add current directory to path so we can import ml_classifier
-sys.path.append(os.getcwd())
-
-from ml_classifier import ContentClassifier
-from config import config
+from provoke.ml.classifier import ContentClassifier
+from provoke.config import config
 
 
 def main():
