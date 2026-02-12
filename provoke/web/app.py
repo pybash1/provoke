@@ -9,7 +9,11 @@ from urllib.parse import urlparse
 from provoke.indexer import SearchEngine
 from provoke.config import config
 
-app = Flask(__name__)
+# Get the project root directory (two levels up from this file)
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+TEMPLATE_DIR = os.path.join(PROJECT_ROOT, "templates")
+
+app = Flask(__name__, template_folder=TEMPLATE_DIR)
 engine = SearchEngine()
 
 
