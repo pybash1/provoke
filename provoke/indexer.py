@@ -33,15 +33,16 @@ class SearchEngine:
             fts_query = " OR ".join([f'"{word}"' for word in words])
 
             sql_fts = """
-                SELECT 
+                SELECT
                     pages.id,
-                    pages.title, 
-                    pages.url, 
+                    pages.title,
+                    pages.url,
                     snippet(pages_trigram, 1, '<mark>', '</mark>', '...', 32) as snip,
                     rank
                 FROM pages_trigram
                 JOIN pages ON pages.id = pages_trigram.rowid
                 WHERE pages_trigram MATCH ?
+                AND pages.url NOT LIKE '%.xml'
                 ORDER BY rank
                 LIMIT 100
             """
@@ -71,6 +72,7 @@ class SearchEngine:
                     SELECT title, url, content, similarity(title, ?) as sim
                     FROM pages
                     WHERE sim > 0.3
+                    AND pages.url NOT LIKE '%.xml'
                     ORDER BY sim DESC
                     LIMIT 20
                 """

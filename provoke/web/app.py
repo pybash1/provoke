@@ -334,7 +334,7 @@ def test_url():
         response.raise_for_status()
         html = response.text
 
-        soup = BeautifulSoup(html, "html.parser")
+        soup = BeautifulSoup(html, "lxml")
         title = soup.title.string if soup.title else url
         text = soup.get_text(separator=" ", strip=True)
 
@@ -515,6 +515,18 @@ def admin_crawl():
     return Response(stream_with_context(generate()), mimetype="text/plain")
 
 
+@app.route("/admin/cleanup")
+def admin_cleanup():
+    from flask import Response, stream_with_context
+    from provoke.utils.cleanup import cleanup_index
+
+    def generate():
+        for line in cleanup_index(yield_output=True):
+            yield line + "\n"
+
+    return Response(stream_with_context(generate()), mimetype="text/plain")
+
+
 @app.route("/admin/manual_insert", methods=["GET", "POST"])
 def manual_insert():
     import requests
@@ -538,7 +550,7 @@ def manual_insert():
         html = response.text
 
         # 2. Extract
-        soup = BeautifulSoup(html, "html.parser")
+        soup = BeautifulSoup(html, "lxml")
         title_tag = soup.title.string if soup.title else None
         title = (title_tag or url).strip()
         text = soup.get_text(separator=" ", strip=True)

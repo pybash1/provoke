@@ -8,6 +8,7 @@ import json
 from provoke.config import config, evaluate_page_quality
 from provoke.utils.logger import QualityLogger
 import re
+from datetime import datetime
 
 
 class SimpleCrawler:
@@ -224,7 +225,7 @@ class SimpleCrawler:
                     return
                 html = response.text
 
-            soup = BeautifulSoup(html, "html.parser")
+            soup = BeautifulSoup(html, "lxml")
 
             # Extract text and title
             title = soup.title.string if soup.title else url
@@ -293,6 +294,71 @@ class SimpleCrawler:
         except Exception as e:
             print(f"Error crawling {url}: {e}")
 
+    def extract_and_save_rss_feeds(self, url, html):
+        """Extract RSS feed links from HTML and save them to rss_feeds table."""
+        if not html:
+            return
+        try:
+            soup = BeautifulSoup(html, "lxml")
+            feeds = []
+            domain = urlparse(url).netloc
+
+            for link in soup.find_all("link", rel="alternate"):
+                link_type = link.get("type", "").lower()
+                href = link.get("href", "")
+                if not href:
+                    continue
+                full_url = urljoin(url, href)
+                is_rss_type = link_type == "application/rss+xml"
+                ends_with_xml = full_url.lower().endswith(".xml")
+                if is_rss_type or ends_with_xml:
+                    feeds.append({
+                        "url": full_url,
+                        "type": link.get("type", "unknown"),
+                        "title": link.get("title", ""),
+                    })
+            if feeds:
+                conn = sqlite3.connect(self.db_file)
+                cursor = conn.cursor()
+                # Ensure rss_feeds table exists
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS rss_feeds (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        url TEXT UNIQUE NOT NULL,
+                        discovered_from TEXT,
+                        title TEXT,
+                        feed_type TEXT,
+                        source_domain TEXT,
+                        date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        last_checked TIMESTAMP,
+                        entry_count INTEGER,
+                        is_active BOOLEAN DEFAULT 1,
+                        error_count INTEGER DEFAULT 0
+                    )
+                    """
+                )
+                for feed in feeds:
+                    cursor.execute(
+                        """
+                        INSERT OR IGNORE INTO rss_feeds
+                        (url, discovered_from, title, feed_type, source_domain, date_added)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            feed["url"],
+                            url,
+                            feed["title"],
+                            feed["type"],
+                            domain,
+                            datetime.now().isoformat(),
+                        ),
+                    )
+                conn.commit()
+                conn.close()
+        except Exception:
+            pass
+
     def save_page(
         self, url, title, content, html, quality_score=None, quality_tier=None
     ):
@@ -310,6 +376,10 @@ class SimpleCrawler:
             )
             conn.commit()
             conn.close()
+
+            # Also extract and save RSS feeds from this page
+            self.extract_and_save_rss_feeds(url, html)
+
         except sqlite3.Error as e:
             print(f"Error saving to database: {e}")
 
@@ -328,6 +398,89 @@ class SimpleCrawler:
                 conn.close()
             except sqlite3.Error as e:
                 print(f"Error blacklisting domain: {e}")
+
+    def extract_and_save_rss_feeds(self, html, base_url):
+        """Extract RSS feeds from HTML and save them to the rss_feeds table."""
+        if not html:
+            return
+
+        try:
+            from datetime import datetime
+
+            soup = BeautifulSoup(html, "lxml")
+            domain = urlparse(base_url).netloc
+            feeds_to_add = []
+
+            # Look for RSS/Atom feed links
+            for link in soup.find_all("link", rel="alternate"):
+                link_type = link.get("type", "").lower()
+                href = link.get("href", "")
+
+                if not href:
+                    continue
+
+                full_url = urljoin(base_url, href)
+
+                # Only include if type is application/rss+xml or URL ends with .xml
+                is_rss_type = link_type == "application/rss+xml"
+                ends_with_xml = full_url.lower().endswith(".xml")
+
+                if is_rss_type or ends_with_xml:
+                    feeds_to_add.append({
+                        "url": full_url,
+                        "title": link.get("title", ""),
+                        "type": link.get("type", "unknown"),
+                        "domain": domain,
+                    })
+
+            if feeds_to_add:
+                conn = sqlite3.connect(self.db_file)
+                cursor = conn.cursor()
+
+                # Ensure rss_feeds table exists
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS rss_feeds (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        url TEXT UNIQUE NOT NULL,
+                        discovered_from TEXT,
+                        title TEXT,
+                        feed_type TEXT,
+                        source_domain TEXT,
+                        date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        last_checked TIMESTAMP,
+                        entry_count INTEGER,
+                        is_active BOOLEAN DEFAULT 1,
+                        error_count INTEGER DEFAULT 0
+                    )
+                    """
+                )
+
+                for feed in feeds_to_add:
+                    try:
+                        cursor.execute(
+                            """
+                            INSERT OR IGNORE INTO rss_feeds
+                            (url, discovered_from, title, feed_type, source_domain, date_added)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                feed["url"],
+                                base_url,
+                                feed["title"],
+                                feed["type"],
+                                feed["domain"],
+                                datetime.now().isoformat(),
+                            ),
+                        )
+                    except sqlite3.Error:
+                        pass
+
+                conn.commit()
+                conn.close()
+
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

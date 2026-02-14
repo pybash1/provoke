@@ -15,11 +15,25 @@ def is_domain_blacklisted(domain, blacklist):
     return False
 
 
-def cleanup_index():
+def cleanup_index(yield_output=False):
+    """
+    Re-evaluate all indexed pages against current filters and remove low-quality pages.
+
+    Args:
+        yield_output: If True, yields output lines as strings for streaming.
+                     If False, prints directly to stdout.
+
+    Returns:
+        Dict with cleanup statistics if yield_output is False.
+    """
     db_file = config.DATABASE_PATH
     if not os.path.exists(db_file):
-        print(f"Error: {db_file} not found.")
-        return
+        msg = f"Error: {db_file} not found."
+        if yield_output:
+            yield msg
+        else:
+            print(msg)
+        return None if yield_output else {"error": msg}
 
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
@@ -28,7 +42,11 @@ def cleanup_index():
     cursor.execute("PRAGMA table_info(pages)")
     columns = [column[1] for column in cursor.fetchall()]
     if "html" not in columns:
-        print("Adding 'html' column to database...")
+        msg = "Adding 'html' column to database..."
+        if yield_output:
+            yield msg
+        else:
+            print(msg)
         cursor.execute("ALTER TABLE pages ADD COLUMN html TEXT")
         conn.commit()
 
@@ -40,9 +58,13 @@ def cleanup_index():
         cursor.execute("SELECT domain FROM whitelisted_domains")
         whitelist = {row[0].lower() for row in cursor.fetchall()}
     except sqlite3.OperationalError:
-        print("Error: Required management tables not found.")
+        msg = "Error: Required management tables not found."
+        if yield_output:
+            yield msg
+        else:
+            print(msg)
         conn.close()
-        return
+        return None if yield_output else {"error": msg}
 
     # 3. Fetch all indexed pages
     cursor.execute("SELECT id, url, content, html FROM pages")
@@ -52,7 +74,11 @@ def cleanup_index():
     to_update_html = []
     reasons = {}
 
-    print(f"Re-evaluating {len(pages)} pages against ALL filters...")
+    msg = f"Re-evaluating {len(pages)} pages against ALL filters..."
+    if yield_output:
+        yield msg
+    else:
+        print(msg)
 
     for page_id, url, text, html in pages:
         # Check domain blacklist first (fastest)
@@ -66,7 +92,11 @@ def cleanup_index():
         # If html is missing, we must re-fetch to run ALL filters
         current_html = html
         if not current_html:
-            print(f"  Fetching missing HTML for: {url}")
+            msg = f"  Fetching missing HTML for: {url}"
+            if yield_output:
+                yield msg
+            else:
+                print(msg)
             try:
                 response = requests.get(url, timeout=config.HTTP_TIMEOUT)
                 if response.status_code == 200:
@@ -95,32 +125,64 @@ def cleanup_index():
             reasons[page_id] = reason
 
     # 4. Updates & Deletions
+    stats = {
+        "total_evaluated": len(pages),
+        "updated_html": len(to_update_html),
+        "deleted": len(to_delete),
+        "reasons": {},
+    }
+
     if to_update_html:
-        print(f"Updating {len(to_update_html)} pages with fetched HTML...")
+        msg = f"Updating {len(to_update_html)} pages with fetched HTML..."
+        if yield_output:
+            yield msg
+        else:
+            print(msg)
         cursor.executemany("UPDATE pages SET html = ? WHERE id = ?", to_update_html)
         conn.commit()
 
     if to_delete:
-        print(f"\nFound {len(to_delete)} pages to remove:")
         reason_summary = {}
         for pid in to_delete:
             r = reasons[pid].split("(")[0]
             reason_summary[r] = reason_summary.get(r, 0) + 1
 
-        for r, count in sorted(
-            reason_summary.items(), key=lambda x: x[1], reverse=True
-        ):
-            print(f"  - {r}: {count}")
+        stats["reasons"] = reason_summary
+
+        msg = f"\nFound {len(to_delete)} pages to remove:"
+        if yield_output:
+            yield msg
+            for r, count in sorted(reason_summary.items(), key=lambda x: x[1], reverse=True):
+                yield f"  - {r}: {count}"
+            yield "\nDeleting..."
+        else:
+            print(msg)
+            for r, count in sorted(reason_summary.items(), key=lambda x: x[1], reverse=True):
+                print(f"  - {r}: {count}")
 
         cursor.executemany(
             "DELETE FROM pages WHERE id = ?", [(pid,) for pid in to_delete]
         )
         conn.commit()
-        print("\nCleanup complete.")
+
+        msg = "\nCleanup complete."
+        if yield_output:
+            yield msg
+            yield f"\n[CLEANUP_COMPLETE] {stats['deleted']} pages removed, {stats['updated_html']} updated"
+        else:
+            print(msg)
     else:
-        print("\nAll pages passed existing filters.")
+        msg = "\nAll pages passed existing filters."
+        if yield_output:
+            yield msg
+            yield f"\n[CLEANUP_COMPLETE] {stats['deleted']} pages removed, {stats['updated_html']} updated"
+        else:
+            print(msg)
 
     conn.close()
+
+    if not yield_output:
+        return stats
 
 
 def main():

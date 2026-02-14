@@ -180,6 +180,27 @@
                     class="bg-black p-4 font-mono text-[0.75rem] max-h-[200px] overflow-y-auto text-[#31ed31] border border-border mt-4 hidden">
                 </div>
 
+                <div class="mt-8 border-t border-border pt-6">
+                    <h3 class="text-lg font-semibold mb-4 text-white flex items-center gap-2">
+                        <span class="text-warning">⚠</span> Database Cleanup
+                    </h3>
+                    <p class="text-text-dim text-[0.8rem] mb-4">
+                        Re-evaluates all indexed pages against current filters and removes low-quality pages.
+                    </p>
+                    <div class="flex gap-3">
+                        <button onclick="runCleanup(event)" class="btn-primary bg-warning text-black hover:brightness-110" id="cleanup-btn">
+                            Run Cleanup
+                        </button>
+                    </div>
+                    <div id="cleanup-logs"
+                        class="bg-black p-4 font-mono text-[0.75rem] max-h-[200px] overflow-y-auto text-[#f59e0b] border border-warning/30 mt-4 hidden">
+                    </div>
+                    <div id="cleanup-stats" class="hidden mt-4 p-4 bg-warning/10 border border-warning/30">
+                        <h4 class="text-sm font-bold text-warning mb-2">Cleanup Complete</h4>
+                        <div id="cleanup-stats-content" class="text-[0.8rem] text-text-dim"></div>
+                    </div>
+                </div>
+
                 <div class="mt-8">
                     <h3 class="text-lg font-semibold mb-4 text-white">Quality Breakdown</h3>
                     <div class="relative h-[200px] w-full">
@@ -535,6 +556,74 @@
                 }
             } catch (e) {
                 logsDiv.innerHTML += `<div class="text-danger mt-3 font-bold">Connection Error: ${e}</div>`;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function runCleanup() {
+            const logsDiv = document.getElementById('cleanup-logs');
+            const statsDiv = document.getElementById('cleanup-stats');
+            const statsContent = document.getElementById('cleanup-stats-content');
+            const btn = document.getElementById('cleanup-btn');
+
+            btn.disabled = true;
+            logsDiv.classList.remove('hidden');
+            statsDiv.classList.add('hidden');
+            logsDiv.innerHTML = '';
+            const initMsg = document.createElement('div');
+            initMsg.className = 'text-text-dim italic';
+            initMsg.textContent = 'Starting cleanup process...';
+            logsDiv.appendChild(initMsg);
+
+            try {
+                const response = await fetch('/admin/cleanup');
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let partial = '';
+                let finalStats = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = (partial + chunk).split('\n');
+                    partial = lines.pop();
+
+                    lines.forEach(line => {
+                        if (!line.trim()) return;
+
+                        if (line.includes('[CLEANUP_COMPLETE]')) {
+                            finalStats = line.replace('[CLEANUP_COMPLETE]', '').trim();
+                            return;
+                        }
+
+                        const div = document.createElement('div');
+                        div.className = 'mb-0.5';
+                        div.textContent = line;
+                        logsDiv.appendChild(div);
+                        logsDiv.scrollTop = logsDiv.scrollHeight;
+                    });
+                }
+
+                if (finalStats) {
+                    statsContent.textContent = finalStats;
+                    statsDiv.classList.remove('hidden');
+                }
+
+                updateStats();
+
+                setTimeout(() => {
+                    logsDiv.classList.add('hidden');
+                    logsDiv.innerHTML = '';
+                }, 5000);
+
+            } catch (e) {
+                const errDiv = document.createElement('div');
+                errDiv.className = 'text-danger mt-3 font-bold';
+                errDiv.textContent = 'Error: ' + e;
+                logsDiv.appendChild(errDiv);
             } finally {
                 btn.disabled = false;
             }
