@@ -60,7 +60,7 @@ The manual insert feature (`/admin/manual_insert`) allows administrators to forc
 To run the web app:
 
 ```bash
-uv run python provoke/web/app.py
+uv run python scripts/app.py
 ```
 
 By default, it runs on `http://127.0.0.1:4000`.
@@ -75,7 +75,7 @@ The web interface uses Tailwind CSS with a custom dark theme:
 
 ## Notes/Limitations
 
-- The `admin_crawl` route uses `subprocess` to run `crawler.py` and streams output. Ensure the environment has the necessary permissions.
+- The `admin_crawl` route uses `subprocess` to run `scripts/crawler.py` and streams output.
 - Labeling updates are written directly to `data/to_label.csv`.
 - The `/domains` page features a custom-styled scrollbar for the domain sidebar using CSS (WebKit and Firefox compatible).
 

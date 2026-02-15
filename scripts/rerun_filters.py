@@ -7,12 +7,21 @@ Updates scores, tiers, and removes rejected pages.
 import sqlite3
 import json
 import sys
+import os
+
+# Get project root
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(PROJECT_ROOT)
+
 from provoke.config import evaluate_page_quality, config
 from bs4 import BeautifulSoup
 
 
-def rerun_filters(db_path="index.db", dry_run=True):
+def rerun_filters(db_path=None, dry_run=True):
     """Re-run quality filters on all pages."""
+    if db_path is None:
+        db_path = os.path.join(PROJECT_ROOT, "index.db")
+
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 

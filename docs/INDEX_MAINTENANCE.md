@@ -6,30 +6,35 @@ Utilities for maintaining and analyzing the search index database.
 
 ## Description
 
-The `provoke/utils/` directory contains scripts for cleaning up the database, checking model performance against indexed data, and monitoring quality statistics.
+The project provides tools for cleaning up the database, checking model performance against indexed data, and monitoring quality statistics. Most maintenance operations are performed via scripts in the `scripts/` directory.
 
 ## Available Utilities
 
-### Cleanup (`provoke/utils/cleanup.py`)
+### Re-filtering & Cleanup (`scripts/rerun_filters.py`)
 
-Re-evaluates all indexed pages against current quality filters and removes low-quality entries.
+Re-evaluates all indexed pages against current quality filters and removes low-quality entries or updates their scores/tiers.
 
 **Usage:**
+
 ```bash
-uv run python -m provoke.utils.cleanup
+# Dry run (show what would be changed)
+uv run python scripts/rerun_filters.py
+
+# Live run (apply changes to database)
+uv run python scripts/rerun_filters.py --live
 ```
 
 **When to use:**
-- After tightening quality thresholds in `config.py`
-- After blacklisting a domain that already has pages in the index
-- When you want to re-validate the entire index with updated filters
 
-**How it works:**
-1. Loads blacklist and whitelist from database
-2. Fetches all pages from the `pages` table
-3. Re-evaluates each page using `evaluate_page_quality()` from `provoke.config`
-4. Deletes pages that fail quality checks
-5. For pages missing HTML content, attempts to re-fetch from the original URL
+- After tightening quality thresholds in `provoke/config.py`.
+- After blacklisting a domain that already has pages in the index.
+- When you want to re-validate the entire index with updated filters.
+
+---
+
+### Internal Cleanup Logic (`provoke/utils/cleanup.py`)
+
+This module contains the logic for purging individual domains or stale pages, primarily used by the Admin UI (`/admin/cleanup` route).
 
 ---
 
@@ -38,19 +43,16 @@ uv run python -m provoke.utils.cleanup
 Analyzes the current ML model's predictions on all indexed pages.
 
 **Usage:**
+
 ```bash
 uv run python -m provoke.utils.model_stats
 ```
 
 **Output:**
-- Total pages classified as good/bad/uncertain
-- Confidence breakdown (high/low confidence for each category)
-- List of URLs classified as bad (sorted by confidence)
 
-**When to use:**
-- After training a new model to see how it performs on existing data
-- To identify potentially misclassified pages
-- To validate model quality before deployment
+- Total pages classified as good/bad/uncertain.
+- Confidence breakdown.
+- List of URLs classified as bad (sorted by confidence).
 
 ---
 
@@ -58,21 +60,19 @@ uv run python -m provoke.utils.model_stats
 
 Tracks acceptance/rejection statistics during crawling.
 
-**Used by:** `provoke.crawler` (not typically run standalone)
-
 **Logs to:**
-- `quality_stats.csv`: Structured rejection data
-- `rejected_urls.log`: Human-readable rejection log
+
+- `data/quality_stats.csv`: Structured rejection data.
+- `data/rejected_urls.log`: Human-readable rejection log.
 
 ## Dependencies
 
-- `sqlite3`: Database operations
-- `provoke.config`: Quality evaluation logic and paths
-- `provoke.ml.classifier`: Model loading for `model_stats.py`
-- `requests`: Re-fetching pages in `cleanup.py`
+- `sqlite3`: Database operations.
+- `provoke.config`: Quality evaluation logic and paths.
+- `provoke.ml.classifier`: Model loading for `model_stats.py`.
 
 ## Related
 
-- [CLEANUP.md](CLEANUP.md) - Detailed cleanup documentation
+- [UTILITY_SCRIPTS.md](UTILITY_SCRIPTS.md)
 - [CRAWLING_SYSTEM.md](CRAWLING_SYSTEM.md)
 - [ML_CLASSIFICATION.md](ML_CLASSIFICATION.md)

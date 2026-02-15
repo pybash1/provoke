@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 import sqlite3
 import time
 import os
+import sys
 from urllib.parse import urljoin, urlparse
 import json
 from provoke.config import config, evaluate_page_quality
@@ -10,6 +11,9 @@ from provoke.utils.logger import QualityLogger
 import re
 from datetime import datetime
 from dataclasses import dataclass, field
+import signal
+import hashlib
+from provoke.utils.robots import RobotsParser
 
 
 @dataclass
@@ -110,6 +114,20 @@ class SimpleCrawler:
         self.branch_stats = (
             {}
         )  # URL branch -> BranchStats mapping for smart tree skipping
+        self.robots_parser = RobotsParser(user_agent=config.USER_AGENT)
+        self.feed_only_domains = (
+            {}
+        )  # Track domains that only serve feeds: domain -> feed_count
+
+        # Register signal handlers for graceful shutdown
+        signal.signal(signal.SIGINT, self._handle_signal)
+        signal.signal(signal.SIGTERM, self._handle_signal)
+
+    def _handle_signal(self, signum, frame):
+        """Signal handler to trigger graceful shutdown."""
+        sig_name = "SIGINT" if signum == signal.SIGINT else "SIGTERM"
+        print(f"\n[SIGNL] Received {sig_name}. Requesting graceful shutdown...")
+        self.stop_requested = True
 
     def init_db(self):
         conn = sqlite3.connect(self.db_file)
@@ -139,6 +157,12 @@ class SimpleCrawler:
             cursor.execute("ALTER TABLE pages ADD COLUMN html TEXT")
         if "unified_score" not in columns:
             cursor.execute("ALTER TABLE pages ADD COLUMN unified_score INTEGER")
+        if "content_hash" not in columns:
+            cursor.execute("ALTER TABLE pages ADD COLUMN content_hash TEXT")
+            # Create index for fast duplicate lookups
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_content_hash ON pages(content_hash)"
+            )
 
         # Create blacklisted_domains table
         cursor.execute(
@@ -230,6 +254,112 @@ class SimpleCrawler:
         except sqlite3.Error:
             return set()
 
+    def add_to_blacklist(self, domain: str):
+        """Add a domain to the blacklist in the database and in-memory cache."""
+        try:
+            conn = sqlite3.connect(self.db_file)
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT OR IGNORE INTO blacklisted_domains (domain) VALUES (?)",
+                (domain,),
+            )
+            conn.commit()
+            conn.close()
+            # Update in-memory cache
+            self.blacklist.add(domain)
+        except sqlite3.Error as e:
+            print(f"  Warning: Could not add {domain} to blacklist: {e}")
+
+    def compute_content_hash(self, text: str) -> str:
+        """Compute a hash of the first 512 bytes of text content for deduplication."""
+        # Use first 512 bytes to create a fingerprint
+        # This is enough to catch duplicates while being fast
+        sample = text[:512].encode("utf-8", errors="ignore")
+        return hashlib.sha256(sample).hexdigest()
+
+    def is_duplicate_content(self, content_hash: str) -> tuple[bool, str | None]:
+        """Check if content with this hash already exists in the database.
+        Returns (is_duplicate, existing_url)
+        """
+        try:
+            conn = sqlite3.connect(self.db_file)
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT url FROM pages WHERE content_hash = ? LIMIT 1", (content_hash,)
+            )
+            result = cursor.fetchone()
+            conn.close()
+
+            if result:
+                return True, result[0]
+            return False, None
+        except sqlite3.Error:
+            return False, None
+
+    def is_rss_or_json_feed(self, html: str, url: str) -> bool:
+        """Detect if the content is an RSS/Atom feed or JSON feed."""
+        if not html:
+            return False
+
+        # Check for common feed patterns in first 1000 chars
+        sample = html[:1000].strip().lower()
+
+        # RSS/Atom feed detection
+        rss_patterns = [
+            "<rss",
+            "<feed",
+            "<?xml",
+            "<atom:",
+            'xmlns="http://www.w3.org/2005/atom"',
+            'xmlns="http://purl.org/rss/',
+        ]
+
+        for pattern in rss_patterns:
+            if pattern in sample:
+                return True
+
+        # JSON feed detection
+        if sample.startswith("{") or sample.startswith("["):
+            try:
+                import json
+
+                data = json.loads(html[:5000])  # Parse first 5KB
+                # Check for common JSON feed structures
+                if isinstance(data, dict):
+                    # JSON Feed format
+                    if "version" in data and "items" in data:
+                        return True
+                    # Common API/feed patterns
+                    if any(
+                        key in data
+                        for key in ["feed", "entries", "posts", "articles", "items"]
+                    ):
+                        return True
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+        return False
+
+    def check_and_blacklist_feed_domain(self, domain: str) -> bool:
+        """Check if a domain should be auto-blacklisted for serving only feeds.
+        Returns True if domain was blacklisted.
+        """
+        if domain not in self.feed_only_domains:
+            return False
+
+        feed_count = self.feed_only_domains[domain]
+        threshold = config.THRESHOLDS.get("feed_only_domain_threshold", 2)
+
+        # If we've seen multiple feeds from this domain, blacklist it
+        if feed_count >= threshold:
+            print(
+                f"  ↳ [AUTO-BLACKLIST] Domain {domain} only serves feeds ({feed_count} detected)"
+            )
+            self.add_to_blacklist(domain)
+            return True
+
+        return False
+
     def start_browser(self):
         if self.use_dynamic and not self.browser:
             from playwright.sync_api import sync_playwright
@@ -314,6 +444,11 @@ class SimpleCrawler:
             if parent_domain in self.blacklist:
                 return False
 
+        # robots.txt compliance
+        if not self.robots_parser.can_fetch(url):
+            print(f"  ↳ [ROBOTS] Disallowed: {url}")
+            return False
+
         return bool(parsed.netloc) and normalized not in self.visited
 
     def crawl(self, url, depth=0, parent_branch=None):
@@ -322,6 +457,11 @@ class SimpleCrawler:
 
         normalized = self.normalize_url(url)
         if depth > self.max_depth or normalized in self.visited:
+            return
+
+        # For seed URLs (depth 0), we need to check validity here
+        # (Subsequent calls are checked before the recursive call)
+        if depth == 0 and not self.is_valid_url(url):
             return
 
         # Smart tree skipping: check if this branch should be abandoned
@@ -385,9 +525,51 @@ class SimpleCrawler:
 
             soup = BeautifulSoup(html, "lxml")
 
+            # Check if this is an RSS/JSON feed
+            parsed_url = urlparse(url)
+            domain = parsed_url.netloc.lower()
+
+            if self.is_rss_or_json_feed(html, url):
+                # Track feed-only domains
+                if domain not in self.feed_only_domains:
+                    self.feed_only_domains[domain] = 0
+                self.feed_only_domains[domain] += 1
+
+                # Check if we should auto-blacklist this domain
+                if self.check_and_blacklist_feed_domain(domain):
+                    branch_stats.record_result(depth, accepted=False)
+                    return
+
+                # Reject this specific feed page
+                branch_stats.record_result(depth, accepted=False)
+                print(f"  ↳ [FEED] Skipping RSS/JSON feed: {url}")
+                self.quality_logger.log_rejection(
+                    url,
+                    ["RSS/JSON feed detected"],
+                    {
+                        "feed_type": "rss_or_json",
+                        "domain_feed_count": self.feed_only_domains[domain],
+                    },
+                )
+                return
+
             # Extract text and title
             title = soup.title.string if soup.title else url
             text = soup.get_text(separator=" ", strip=True)
+
+            # Check for duplicate content before quality filtering
+            content_hash = self.compute_content_hash(text)
+            is_duplicate, existing_url = self.is_duplicate_content(content_hash)
+
+            if is_duplicate:
+                branch_stats.record_result(depth, accepted=False)
+                print(f"  ↳ [DUPLICATE] Skipping {url} (identical to {existing_url})")
+                self.quality_logger.log_rejection(
+                    url,
+                    [f"Duplicate content (same as {existing_url})"],
+                    {"content_hash": content_hash, "original_url": existing_url},
+                )
+                return
 
             # Quality Filtering
             quality_result = evaluate_page_quality(
@@ -407,6 +589,7 @@ class SimpleCrawler:
                     html,
                     quality_result["scores"],
                     quality_result["quality_tier"],
+                    content_hash,
                 )
                 # Reset consecutive rejections on acceptance
                 self.consecutive_rejections = 0  # Reset global counter
@@ -455,6 +638,10 @@ class SimpleCrawler:
                     href = str(link["href"])
                     next_url = urljoin(url, href)
                     if self.is_valid_url(next_url):
+                        # Use a more responsive loop for stopping
+                        if self.stop_requested:
+                            break
+
                         # Check if the new URL would be in an abandoned branch
                         next_branch = self.get_branch_key(next_url, depth + 1)
                         if (
@@ -464,7 +651,14 @@ class SimpleCrawler:
                             continue  # Skip links to abandoned branches
 
                         self.crawl(next_url, depth + 1, parent_branch=branch_key)
-                        time.sleep(config.CRAWLER_POLITE_DELAY)  # Polite crawling
+
+                        # Responsive delay: check for stop several times during delay
+                        for _ in range(int(config.CRAWLER_POLITE_DELAY * 10)):
+                            if self.stop_requested:
+                                break
+                            time.sleep(0.1)
+                        if self.stop_requested:
+                            break
         except Exception as e:
             print(f"Error crawling {url}: {e}")
             # Record as rejection on error
@@ -472,7 +666,14 @@ class SimpleCrawler:
                 self.branch_stats[branch_key].record_result(depth, accepted=False)
 
     def save_page(
-        self, url, title, content, html, quality_score=None, quality_tier=None
+        self,
+        url,
+        title,
+        content,
+        html,
+        quality_score=None,
+        quality_tier=None,
+        content_hash=None,
     ):
         try:
             conn = sqlite3.connect(self.db_file)
@@ -491,8 +692,8 @@ class SimpleCrawler:
 
             cursor.execute(
                 """INSERT OR REPLACE INTO pages
-                    (url, title, content, html, quality_score, quality_tier, unified_score)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (url, title, content, html, quality_score, quality_tier, unified_score, content_hash)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     url,
                     title,
@@ -501,6 +702,7 @@ class SimpleCrawler:
                     quality_score_json,
                     quality_tier,
                     unified_score,
+                    content_hash,
                 ),
             )
             conn.commit()
@@ -672,9 +874,7 @@ class SimpleCrawler:
             pass
 
 
-if __name__ == "__main__":
-    import sys
-    import os
+def main():
     import argparse
 
     # Set up argument parser for better CLI experience
@@ -762,6 +962,12 @@ if __name__ == "__main__":
     crawler = SimpleCrawler(urls_to_crawl[0], max_depth=depth, use_dynamic=use_dynamic)
     try:
         for url in urls_to_crawl:
+            if crawler.stop_requested:
+                print(
+                    "[SHUTDOWN] Skipping remaining seed URLs due to shutdown request."
+                )
+                break
+
             print(f"\n>>> Starting crawl from input URL: {url}")
             print(
                 f"[CONFIG] Smart Tree: {'enabled' if args.no_smart_tree == False else 'disabled'}, "
@@ -774,8 +980,19 @@ if __name__ == "__main__":
             crawler.consecutive_rejections = 0
             # Note: We keep branch_stats across seeds to learn from previous branches
             crawler.crawl(url)
+    except KeyboardInterrupt:
+        print("\n[SHUTDOWN] KeyboardInterrupt received. Cleaning up...")
+        crawler.stop_requested = True
     finally:
         crawler.close_browser()
         crawler.quality_logger.print_summary()
         crawler.print_branch_summary()
-    print("[CRAWL COMPLETE]")
+
+    if crawler.stop_requested:
+        print("[CRAWL INTERRUPTED - Graceful shutdown completed]")
+    else:
+        print("[CRAWL COMPLETE]")
+
+
+if __name__ == "__main__":
+    main()

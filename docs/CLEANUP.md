@@ -1,36 +1,38 @@
-# provoke/utils/cleanup.py
+# Database Cleanup Utilities
 
-## Summary
+The project provides two levels of index maintenance: targeted cleanup and full index re-filtering.
 
-A storage maintenance script for purging invalid or low-quality pages from the database.
+## Full Index Re-filtering (`scripts/rerun_filters.py`)
 
-## Description
+This is the primary tool for bulk-updating the index after configuration changes.
 
-`provoke/utils/cleanup.py` scans the `pages` table in `index.db` and applies current filtering rules to existing entries. This is useful when:
+- **Purpose**: Re-evaluates every page in the database against the latest `config.py` heuristics and ML models.
+- **Actions**: Updates quality scores, changes quality tiers (e.g., from `ml_uncertain_accept` to `bad`), and optionally deletes rejected pages.
+- **Usage**:
+  ```bash
+  uv run python scripts/rerun_filters.py --live
+  ```
 
-1.  A new domain has been blacklisted.
-2.  Quality thresholds in `config.py` have been tightened.
-3.  The ML model has been updated and you want to re-evalute previous entries.
+## Targeted Maintenance (`provoke/utils/cleanup.py`)
 
-## Public API / Interfaces
+This utility handles specific maintenance tasks, such as purging pages from newly blacklisted domains.
 
-- `cleanup_index()`:
-  - Loads the blacklist from the database.
-  - Iterates through all indexed pages.
-  - If a page is blacklisted or fails `evaluate_page_quality` (from `config.py`), it is deleted from the DB.
+- **Purpose**: Used by the Admin UI to perform streaming cleanup operations.
+- **Features**:
+  - Keeps track of previously checked URLs to avoid redundant work.
+  - Can re-fetch HTML for pages that were indexed without source code.
+- **Usage (CLI)**:
+  ```bash
+  uv run python -m provoke.utils.cleanup [--all]
+  ```
 
 ## Dependencies
 
-- `sqlite3`: Database operations
-- `provoke.config`: Quality evaluation logic and configuration paths
-- `requests`: For re-fetching pages that are missing HTML content
+- `sqlite3`: Database operations.
+- `provoke.config`: Quality evaluation logic and configuration paths.
+- `requests`: For re-fetching pages that are missing HTML content.
 
-## Example
+## Notes
 
-```bash
-uv run python -m provoke.utils.cleanup
-```
-
-## Notes/Limitations
-
-- This script modifies the primary database. It is recommended to back up `index.db` before running.
+- Both scripts modify the primary database. It is recommended to back up `index.db` before running extensive re-filtering.
+- For a complete re-sync of the index, `scripts/rerun_filters.py --live` is the recommended path.

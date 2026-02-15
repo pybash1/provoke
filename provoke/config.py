@@ -9,7 +9,7 @@ Supports environment-based overrides via the PROVOKE_ENV environment variable:
   - "production": optimized settings, no debug
 
 Usage:
-    from config import config
+    from provoke.config import config
     db_path = config.DATABASE_PATH
 """
 
@@ -79,24 +79,27 @@ class _BaseConfig:
     # ── Environment ───────────────────────────────────────────────────────
     ENV: str = _env("PROVOKE_ENV", "development")
 
-    # ── Database ──────────────────────────────────────────────────────────
-    DATABASE_PATH: str = _env("PROVOKE_DB_PATH", "index.db")
-
     # ── Server ────────────────────────────────────────────────────────────
     SERVER_HOST: str = _env("PROVOKE_HOST", "127.0.0.1")
     SERVER_PORT: int = _env_int("PROVOKE_PORT", 4000)
     SERVER_DEBUG: bool = True
 
     # ── File Paths ────────────────────────────────────────────────────────
-    QUALITY_STATS_CSV: str = "quality_stats.csv"
-    REJECTED_URLS_LOG: str = "rejected_urls.log"
-    LABEL_CSV: str = "data/to_label.csv"
-    LABEL_DONE_CSV: str = "data/to_label_done.csv"
-    TRAINING_DATA_FILE: str = "data/training_data.txt"
-    TRAIN_SPLIT_FILE: str = "data/train.txt"
-    TEST_SPLIT_FILE: str = "data/test.txt"
-    DATA_DIR: str = "data"
-    MODELS_DIR: str = "models"
+    _PROJECT_ROOT: str = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+    DATABASE_PATH: str = _env(
+        "PROVOKE_DB_PATH", os.path.join(_PROJECT_ROOT, "index.db")
+    )
+    QUALITY_STATS_CSV: str = os.path.join(_PROJECT_ROOT, "quality_stats.csv")
+    REJECTED_URLS_LOG: str = os.path.join(_PROJECT_ROOT, "rejected_urls.log")
+    LABEL_CSV: str = os.path.join(_PROJECT_ROOT, "data/to_label.csv")
+    LABEL_DONE_CSV: str = os.path.join(_PROJECT_ROOT, "data/to_label_done.csv")
+    TRAINING_DATA_FILE: str = os.path.join(_PROJECT_ROOT, "data/training_data.txt")
+    TRAIN_SPLIT_FILE: str = os.path.join(_PROJECT_ROOT, "data/train.txt")
+    TEST_SPLIT_FILE: str = os.path.join(_PROJECT_ROOT, "data/test.txt")
+    DATA_DIR: str = os.path.join(_PROJECT_ROOT, "data")
+    MODELS_DIR: str = os.path.join(_PROJECT_ROOT, "models")
+    ADLIST_PATH: str = os.path.join(DATA_DIR, "adlist.txt")
 
     # ── HTTP / User-Agent ─────────────────────────────────────────────────
     USER_AGENT: str = (
@@ -136,6 +139,8 @@ class _BaseConfig:
         "branch_acceptance_bonus": 2,  # Bonus accepted pages to give new branches a chance
         # Page size limits: abandon pages that are too large (in bytes)
         "max_page_size_mb": 2,  # Maximum page size in MB (2MB = ~2 million characters)
+        # RSS/JSON feed auto-blacklisting
+        "feed_only_domain_threshold": 5,  # Number of feeds before auto-blacklisting domain
     }
 
     # ── ML Settings ───────────────────────────────────────────────────────
@@ -311,6 +316,37 @@ class _BaseConfig:
         r"bottom-ad",
     ]
 
+    # ── Ad Script Blacklist (Hard Rejection) ──────────────────────────────
+    # Domains that, if found in <script src="..."> or <link href="...">,
+    # trigger immediate rejection.
+    BLACKLISTED_AD_SCRIPTS: list = [
+        "doubleclick.net",
+        "googleadservices.com",
+        "googlesyndication.com",
+        "adnxs.com",
+        "taboola.com",
+        "outbrain.com",
+        "amazon-adsystem.com",
+        "adform.net",
+        "adroll.com",
+        "criteo.com",
+        "rubiconproject.com",
+        "pubmatic.com",
+        "openx.net",
+        "yieldmo.com",
+        "triplelift.com",
+        "indexww.com",
+        "smartadserver.com",
+        "revcontent.com",
+        "mgid.com",
+        "buysellads.com",
+        "carbonads.net",
+        "ad-server.org",
+        "mads.microsoft.com",
+        "quantserve.com",
+        "scorecardresearch.com",
+    ]
+
     # ── Personal Blog Signals ─────────────────────────────────────────────
     PERSONAL_DOMAIN_KEYWORDS: list = [
         "blog",
@@ -427,6 +463,7 @@ TRACKING_SCRIPTS = config.TRACKING_SCRIPTS
 AD_ELEMENT_PATTERNS = config.AD_ELEMENT_PATTERNS
 PERSONAL_DOMAIN_KEYWORDS = config.PERSONAL_DOMAIN_KEYWORDS
 BINARY_EXTENSIONS = config.BINARY_EXTENSIONS
+BLACKLISTED_AD_SCRIPTS = config.BLACKLISTED_AD_SCRIPTS
 
 
 # ---------------------------------------------------------------------------
@@ -605,47 +642,64 @@ def calculate_ad_score(html: str) -> tuple[int, int]:
     """
     Calculates an 'ad score' (0-100) based on detected ad/tracking tech.
     Higher score means more ad-heavy.
-
-    Returns:
-        Tuple of (ad_score, ad_tech_count) where:
-        - ad_score: 0-100 score representing ad heaviness
-        - ad_tech_count: count of distinct ad networks/trackers found
     """
     if not html:
         return 0, 0
 
     points = 0
     html_lower = html.lower()
+    soup = BeautifulSoup(html, "lxml")
 
-    # 1. Check for specific domains/networks (Width of tech)
-    networks_found = 0
-    for network in config.AD_NETWORKS:
-        if network in html_lower:
-            networks_found += 1
+    from provoke.utils.adblock import get_ad_blocker
+
+    ad_blocker = get_ad_blocker()
+
+    # 1. Check for specific domains/networks in src/href (Precision)
+    networks_found = set()
+
+    # Check scripts
+    for script in soup.find_all("script", src=True):
+        src = str(script["src"]).lower()
+        if ad_blocker.is_ad_url(src):
+            networks_found.add("blacklisted_ad_script")
+            points += 25  # High weight for blocked scripts
+
+        for network in config.AD_NETWORKS:
+            if network in src:
+                networks_found.add(network)
+                points += 15  # Higher weight for actual script tags
+
+    # Check links/iframes
+    for tag in soup.find_all(["link", "iframe", "a"], href=True):
+        href = str(tag.get("href", "")).lower()
+        if ad_blocker.is_ad_url(href):
+            networks_found.add("blacklisted_ad_link")
             points += 10
 
-    # 2. Check for tracking patterns
+        for network in config.AD_NETWORKS:
+            if network in href:
+                networks_found.add(network)
+                points += 5
+
+    # 2. Check for tracking patterns in whole HTML (Breadth)
     trackers_found = 0
     for pattern in config.TRACKING_SCRIPTS:
         if re.search(pattern, html_lower):
             trackers_found += 1
             points += 5
 
-    # 3. Check for specific ad elements in HTML structure (Density of ads)
-    # We count occurrences to detect "ad-stuffed" pages
+    # 3. Check for specific ad elements in HTML structure
     for pattern in config.AD_ELEMENT_PATTERNS:
-        # We cap the regex matches to prevent huge counts from becoming astronomical
         matches = re.findall(pattern, html_lower)
         points += min(10, len(matches)) * 3
 
     # 4. Detect multiple iframes (often used for ads)
-    iframe_count = html_lower.count("<iframe")
+    iframe_count = len(soup.find_all("iframe"))
     if iframe_count > 3:
-        points += min(15, (iframe_count - 3) * 3)
+        points += min(15, (iframe_count - 3) * 5)
 
     ad_score = min(100, points)
-    ad_tech_count = networks_found + trackers_found
-    return ad_score, ad_tech_count
+    return ad_score, len(networks_found) + trackers_found
 
 
 def calculate_corporate_score(url: str, html: str, text: str) -> int:
@@ -984,10 +1038,37 @@ def evaluate_page_quality(
         if is_homepage_not_article(url, html):
             return {
                 "is_acceptable": False,
-                "rejection_reasons": [
-                    "Generic landing page / Root domain without blog content"
-                ],
-                "scores": {"landing_page": True},
+                "quality_tier": "rejected",
+            }
+
+    # PHASE 0.6: Ad Script Blacklist (Hard Rejection)
+    if not is_whitelisted:
+        from provoke.utils.adblock import get_ad_blocker
+
+        ad_blocker = get_ad_blocker()
+        soup = BeautifulSoup(html, "lxml")
+        ad_scripts_found = []
+
+        # Check src in scripts and link tags
+        for tag in soup.find_all(["script", "link", "iframe"], src=True):
+            src = str(tag.get("src", "")).lower()
+            if ad_blocker.is_ad_url(src):
+                ad_scripts_found.append(src)
+
+        # Also check href in scripts/links
+        for tag in soup.find_all(["script", "link"], href=True):
+            href = str(tag.get("href", "")).lower()
+            if ad_blocker.is_ad_url(href):
+                ad_scripts_found.append(href)
+
+        if len(set(ad_scripts_found)) >= 2:
+            return {
+                "is_acceptable": False,
+                "rejection_reasons": ["High density of blacklisted ad scripts found"],
+                "scores": {
+                    "ad_script_blacklist": True,
+                    "ad_count": len(set(ad_scripts_found)),
+                },
                 "quality_tier": "rejected",
             }
 

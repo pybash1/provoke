@@ -1,19 +1,25 @@
-# Data Storage (`data/`)
+# Data Storage
 
-## Purpose
+The project uses a mix of root-level and `data/` directory files for persistence and logging.
 
-The `data/` directory stores all persistent datasets, including manual labels, logs, and formatted machine learning training/test sets.
+## Core Database
 
-## Files
+- **`index.db`**: The primary SQLite database containing indexed pages, FTS tables, and domain metadata (blacklists/whitelists).
 
-- **`to_label.csv`**: The primary working file for manual content classification.
-  - Columns: `url`, `title`, `snippet`, `quality` (`good`, `bad`, or `unsure`).
-- **`to_label_done.csv`**: A backup or archive of URLs that have already been labeled.
-- **`training_data.txt`**: The combined labeled data formatted for FastText.
-- **`train.txt`**: The 75% split used for model training.
-- **`test.txt`**: The 25% split used for model evaluation.
+## Machine Learning Data (`data/`)
+
+- **`data/to_label.csv`**: The primary working file for manual content classification.
+- **`data/to_label_done.csv`**: A backup or archive of URLs that have already been labeled.
+- **`data/training_data.txt`**: The combined labeled data formatted for FastText.
+- **`data/train.txt`**: The split used for model training.
+- **`data/test.txt`**: The split used for model evaluation.
+
+## Logs & Statistics
+
+- **`quality_stats.csv`**: Structured CSV log tracking every URL rejection with reasons and heuristic scores.
+- **`rejected_urls.log`**: Human-readable log of rejected URLs for quick diagnostic review.
 
 ## Related Documentation
 
 - [DATA_MANAGEMENT.md](DATA_MANAGEMENT.md): Documentation for `provoke/ml/data_prep.py`.
-- [TRAINING_WORKFLOW.md](TRAINING_WORKFLOW.md): Documentation for `provoke/ml/trainer.py`.
+- [TRAINING_WORKFLOW.md](TRAINING_WORKFLOW.md): Documentation for the ML lifecycle scripts.

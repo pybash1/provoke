@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import sys
 import difflib
 from provoke.config import config
 
@@ -123,11 +124,9 @@ class SearchEngine:
         return results
 
 
-if __name__ == "__main__":
-    import sys
-
+def main():
     if len(sys.argv) < 2:
-        print("Usage: python indexer.py <query>")
+        print("Usage: python scripts/indexer.py <query>")
         sys.exit(1)
 
     query = " ".join(sys.argv[1:])
@@ -139,3 +138,7 @@ if __name__ == "__main__":
         print(f"\n[{res['score']}] {res['title']}")
         print(f"URL: {res['url']}")
         print(f"Snippet: {res['snippet']}")
+
+
+if __name__ == "__main__":
+    main()

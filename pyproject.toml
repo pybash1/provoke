@@ -20,22 +20,10 @@ dev = [
     "pytest>=8.0.0",
 ]
 
-[tool.setuptools]
-py-modules = [
-    "app",
-    "config",
-    "crawler",
-    "indexer",
-    "ml_classifier",
-    "ml_data_prep",
-    "ml_train",
-    "train_classifier",
-    "quality_logger",
-    "cleanup",
-    "check_model_stats",
-    "landing_page_filter",
-]
+[project.scripts]
+provoke-web = "provoke.web.app:main"
+provoke-crawler = "provoke.crawler:main"
+provoke-trainer = "provoke.ml.trainer:main"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["provoke*", "tests*"]
+[tool.setuptools]
+packages = ["provoke", "provoke.ml", "provoke.utils", "provoke.web"]

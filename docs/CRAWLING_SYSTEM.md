@@ -1,4 +1,4 @@
-# Crawling System (`crawler.py`)
+# Crawling System (`provoke/crawler.py`)
 
 ## Summary
 
@@ -34,7 +34,9 @@ The core crawling engine that traverses the web, extracts content, and saves hig
 ### CLI Commands:
 
 ```bash
-uv run python provoke/crawler.py <url_or_file> [max_depth] [--dynamic]
+uv run python scripts/crawler.py <url_or_file> [max_depth] [--dynamic]
+# or
+uv run provoke-crawler <url_or_file> [max_depth] [--dynamic]
 ```
 
 - **`<url_or_file>`**: A single URL or a path to a text file containing seed URLs.
@@ -55,13 +57,13 @@ uv run python provoke/crawler.py <url_or_file> [max_depth] [--dynamic]
 Crawl a specific blog:
 
 ```bash
-uv run python provoke/crawler.py https://example.com/blog 2
+uv run python scripts/crawler.py https://example.com/blog 2
 ```
 
 Crawl from a list of seeds with dynamic rendering:
 
 ```bash
-uv run python provoke/crawler.py seeds.txt 1 --dynamic
+uv run python scripts/crawler.py seeds.txt 1 --dynamic
 ```
 
 ## Related

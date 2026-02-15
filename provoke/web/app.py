@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for
 import sqlite3
 import csv
 import os
+import sys
 import re
 import json
 from collections import Counter
@@ -99,7 +100,7 @@ def get_admin_data():
     accepted_tr = []
     accepted_readability = []
     accepted_unified = []
-    for (unified_score, q_score_raw) in rows:
+    for unified_score, q_score_raw in rows:
         # Use unified_score from dedicated column
         if unified_score is not None:
             accepted_unified.append(unified_score)
@@ -312,7 +313,7 @@ def test_url():
     from flask import jsonify, request
     import requests
     from bs4 import BeautifulSoup
-    from config import evaluate_page_quality
+    from provoke.config import evaluate_page_quality
 
     url = request.args.get("url")
     if not url:
@@ -499,17 +500,31 @@ def admin_crawl():
     def generate():
         # Build command with smart tree options
         cmd = [
-            sys.executable, "-u", "crawler.py", url, str(depth),
+            sys.executable,
+            "-u",
+            os.path.join("scripts", "crawler.py"),
+            url,
+            str(depth),
             "--smart-tree" if smart_tree else "--no-smart-tree",
-            "--min-samples", str(min_samples),
-            "--rejection-threshold", str(rejection_threshold),
-            "--depth-threshold", str(depth_threshold),
-            "--max-page-size", str(max_page_size)
+            "--min-samples",
+            str(min_samples),
+            "--rejection-threshold",
+            str(rejection_threshold),
+            "--depth-threshold",
+            str(depth_threshold),
+            "--max-page-size",
+            str(max_page_size),
         ]
 
         process = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
-            cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__)))  # Project root
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            cwd=os.path.dirname(
+                os.path.dirname(os.path.dirname(__file__))
+            ),  # Project root
         )
 
         if process.stdout:
@@ -681,5 +696,9 @@ def api_label():
     return {"success": updated, "next_item": next_item}
 
 
-if __name__ == "__main__":
+def main():
     app.run(debug=config.SERVER_DEBUG, host=config.SERVER_HOST, port=config.SERVER_PORT)
+
+
+if __name__ == "__main__":
+    main()

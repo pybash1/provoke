@@ -28,13 +28,13 @@ The search engine module that provides full-text and fuzzy search capabilities o
 ### CLI Command:
 
 ```bash
-uv run python provoke/indexer.py "<query>"
+uv run python scripts/indexer.py "<query>"
 ```
 
 Example:
 
 ```bash
-uv run python provoke/indexer.py "python web scraping"
+uv run python scripts/indexer.py "python web scraping"
 ```
 
 ## Dependencies

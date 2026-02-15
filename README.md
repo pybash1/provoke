@@ -6,18 +6,18 @@ A specialized web crawler and search engine designed to index high-quality perso
 
 ```bash
 # Run the web interface
-uv run python provoke/web/app.py
+uv run python scripts/app.py
 
 # Crawl a URL
-uv run python provoke/crawler.py https://example.com/blog 2
+uv run python scripts/crawler.py https://example.com/blog 2
 
 # Search from command line
-uv run python provoke/indexer.py "your query"
+uv run python scripts/indexer.py "your query"
 
 # Train the ML classifier
-uv run python -m provoke.ml.trainer --export --limit 1000
+uv run python scripts/train_classifier.py --export --limit 1000
 # ... label data in data/to_label.csv ...
-uv run python -m provoke.ml.trainer --train
+uv run python scripts/train_classifier.py --train
 ```
 
 ## Documentation
@@ -37,22 +37,20 @@ See [docs/README.md](docs/README.md) for full documentation index.
 ## Project Structure
 
 ```
-provoke/
+provoke/               # Core application package
 ├── config.py          # Central configuration and quality logic
 ├── crawler.py         # Web crawling engine
 ├── indexer.py         # Search engine
 ├── ml/                # Machine learning components
-│   ├── classifier.py
-│   ├── data_prep.py
-│   ├── trainer.py
-│   └── training.py
 ├── utils/             # Utility modules
-│   ├── cleanup.py
-│   ├── logger.py
-│   ├── model_stats.py
-│   └── landing_page.py
 └── web/               # Flask web interface
-    └── app.py
+
+scripts/               # Executable scripts and utilities
+├── app.py             # Web interface entry point
+├── crawler.py         # Crawler entry point
+├── indexer.py         # Search entry point
+├── train_classifier.py # ML training entry point
+└── rerun_filters.py   # Database maintenance
 ```
 
 ## Requirements
