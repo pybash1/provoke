@@ -129,8 +129,14 @@ class SimpleCrawler:
         print(f"\n[SIGNL] Received {sig_name}. Requesting graceful shutdown...")
         self.stop_requested = True
 
-    def init_db(self):
+    def _get_db_connection(self):
         conn = sqlite3.connect(self.db_file)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        return conn
+
+    def init_db(self):
+        conn = self._get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -234,7 +240,7 @@ class SimpleCrawler:
 
     def get_blacklisted_domains(self):
         try:
-            conn = sqlite3.connect(self.db_file)
+            conn = self._get_db_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT domain FROM blacklisted_domains")
             domains = {row[0] for row in cursor.fetchall()}
@@ -245,7 +251,7 @@ class SimpleCrawler:
 
     def get_whitelisted_domains(self):
         try:
-            conn = sqlite3.connect(self.db_file)
+            conn = self._get_db_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT domain FROM whitelisted_domains")
             domains = {row[0] for row in cursor.fetchall()}
@@ -257,7 +263,7 @@ class SimpleCrawler:
     def add_to_blacklist(self, domain: str):
         """Add a domain to the blacklist in the database and in-memory cache."""
         try:
-            conn = sqlite3.connect(self.db_file)
+            conn = self._get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
                 "INSERT OR IGNORE INTO blacklisted_domains (domain) VALUES (?)",
@@ -282,7 +288,7 @@ class SimpleCrawler:
         Returns (is_duplicate, existing_url)
         """
         try:
-            conn = sqlite3.connect(self.db_file)
+            conn = self._get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT url FROM pages WHERE content_hash = ? LIMIT 1", (content_hash,)
@@ -676,7 +682,7 @@ class SimpleCrawler:
         content_hash=None,
     ):
         try:
-            conn = sqlite3.connect(self.db_file)
+            conn = self._get_db_connection()
             cursor = conn.cursor()
 
             # Extract unified_score from quality_score dict
@@ -770,7 +776,7 @@ class SimpleCrawler:
             print(f"!!! BLACKLISTING DOMAIN: {domain} due to excessive rejections !!!")
             self.blacklist.add(domain)
             try:
-                conn = sqlite3.connect(self.db_file)
+                conn = self._get_db_connection()
                 cursor = conn.cursor()
                 cursor.execute(
                     "INSERT OR IGNORE INTO blacklisted_domains (domain) VALUES (?)",
@@ -825,7 +831,7 @@ class SimpleCrawler:
                     )
 
             if feeds_to_add:
-                conn = sqlite3.connect(self.db_file)
+                conn = self._get_db_connection()
                 cursor = conn.cursor()
 
                 # Ensure rss_feeds table exists
