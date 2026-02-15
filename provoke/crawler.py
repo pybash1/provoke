@@ -361,7 +361,7 @@ class SimpleCrawler:
         return False
 
     def start_browser(self):
-        if self.use_dynamic and not self.browser:
+        if not self.browser:
             from playwright.sync_api import sync_playwright
 
             print("Starting headless browser for dynamic content...")
@@ -375,6 +375,29 @@ class SimpleCrawler:
         if self.playwright:
             self.playwright.stop()
             self.playwright = None
+
+    def fetch_dynamic(self, url):
+        """Fetch a URL using Playwright (headless browser)."""
+        self.start_browser()
+        if not self.browser:
+            return None
+
+        try:
+            page = self.browser.new_page()
+            # Set viewport to a standard desktop size to ensure content loads correctly
+            page.set_viewport_size({"width": 1280, "height": 800})
+
+            page.goto(
+                url, wait_until="networkidle", timeout=config.DYNAMIC_PAGE_TIMEOUT
+            )
+            # Wait a bit more for React/Vue to finish rendering if needed
+            time.sleep(config.DYNAMIC_RENDER_WAIT)
+            html = page.content()
+            page.close()
+            return html
+        except Exception as e:
+            print(f"  ↳ Warning: Dynamic fetch failed for {url}: {e}")
+            return None
 
     def normalize_url(self, url):
         # Strip fragment and query parameters for canonical URL
@@ -483,18 +506,11 @@ class SimpleCrawler:
             html = None
 
             if self.use_dynamic:
-                self.start_browser()
-                if not self.browser:
-                    print(f"Failed to start browser for {url}")
+                html = self.fetch_dynamic(url)
+                if not html:
+                    # Record rejection for failed fetches
+                    branch_stats.record_result(depth, accepted=False)
                     return
-                page = self.browser.new_page()
-                page.goto(
-                    url, wait_until="networkidle", timeout=config.DYNAMIC_PAGE_TIMEOUT
-                )
-                # Wait a bit more for React/Vue to finish rendering if needed
-                time.sleep(config.DYNAMIC_RENDER_WAIT)
-                html = page.content()
-                page.close()
             else:
                 headers = {"User-Agent": config.USER_AGENT}
                 response = requests.get(
@@ -505,6 +521,39 @@ class SimpleCrawler:
                     branch_stats.record_result(depth, accepted=False)
                     return
                 html = response.text
+
+                # Check for indicators that dynamic rendering is needed
+                thresholds = config.THRESHOLDS
+                needs_dynamic = False
+                reason = ""
+                html_lower = html.lower()
+
+                if len(html) < thresholds.get("min_static_content_bytes", 1000):
+                    reason = f"content too small ({len(html)} bytes < {thresholds.get('min_static_content_bytes', 1000)})"
+                    needs_dynamic = True
+                elif html_lower.count("<script") > thresholds.get(
+                    "max_static_script_tags", 20
+                ):
+                    reason = f"too many scripts ({html_lower.count('<script')} > {thresholds.get('max_static_script_tags', 20)})"
+                    needs_dynamic = True
+                elif "<noscript" in html_lower:
+                    # If we see <noscript>, the site almost certainly expects JS
+                    reason = "found <noscript> tag"
+                    needs_dynamic = True
+
+                if needs_dynamic:
+                    print(f"  ↳ [AUTO-SWITCH] Switching to dynamic fetch: {reason}")
+                    # Try fetch with headless browser
+                    dynamic_html = self.fetch_dynamic(url)
+                    if dynamic_html:
+                        html = dynamic_html
+                        print(
+                            f"  ✓ [AUTO-SWITCH] Successfully fetched dynamic content ({len(html)} bytes)"
+                        )
+                    else:
+                        print(
+                            f"  ✗ [AUTO-SWITCH] Dynamic fetch failed, falling back to static content."
+                        )
 
             # Check page size limit - abandon pages that are too large
             max_size_bytes = config.THRESHOLDS.get("max_page_size_mb", 2) * 1024 * 1024
