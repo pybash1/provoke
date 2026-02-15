@@ -57,6 +57,10 @@ def get_admin_data():
     cursor.execute("SELECT COUNT(*) FROM whitelisted_domains")
     total_whitelisted = cursor.fetchone()[0]
 
+    # RSS Feeds count
+    cursor.execute("SELECT COUNT(*) FROM rss_feeds")
+    total_rss_feeds = cursor.fetchone()[0]
+
     # Tier distribution
     cursor.execute("SELECT quality_tier, COUNT(*) FROM pages GROUP BY quality_tier")
     tier_counts = {row[0]: row[1] for row in cursor.fetchall()}
@@ -74,22 +78,9 @@ def get_admin_data():
 
     # Get recent indexed pages
     cursor.execute(
-        "SELECT url, title, quality_tier, quality_score FROM pages ORDER BY id DESC LIMIT 50"
+        "SELECT url, title, quality_tier, unified_score FROM pages ORDER BY id DESC LIMIT 50"
     )
 
-    recent_pages = []
-
-    # Function to parse raw score
-    def parse_score(raw_score):
-        if isinstance(raw_score, str) and "{" in raw_score:
-            try:
-                score_data = json.loads(raw_score)
-                return score_data.get("unified_score", raw_score)
-            except:
-                return raw_score
-        return raw_score
-
-    # ... in recent_pages loop
     recent_pages = []
     for row in cursor.fetchall():
         recent_pages.append(
@@ -97,29 +88,40 @@ def get_admin_data():
                 "url": row[0],
                 "title": row[1],
                 "tier": row[2],
-                "score": parse_score(row[3]),
+                "score": row[3] or 0,
             }
         )
 
-    # Accepted pages metrics
-    cursor.execute("SELECT quality_score FROM pages")
+    # Accepted pages metrics - unified_score from dedicated column
+    cursor.execute("SELECT unified_score, quality_score FROM pages")
     rows = cursor.fetchall()
     accepted_wc = []
     accepted_tr = []
     accepted_readability = []
     accepted_unified = []
-    for (q_score_raw,) in rows:
-        try:
-            if q_score_raw and isinstance(q_score_raw, str) and "{" in q_score_raw:
+    for (unified_score, q_score_raw) in rows:
+        # Use unified_score from dedicated column
+        if unified_score is not None:
+            accepted_unified.append(unified_score)
+        elif q_score_raw is not None:
+            # Fallback for old data
+            try:
+                if isinstance(q_score_raw, str) and "{" in q_score_raw:
+                    data = json.loads(q_score_raw)
+                    accepted_unified.append(data.get("unified_score", 0))
+                else:
+                    accepted_unified.append(float(q_score_raw))
+            except:
+                pass
+        # Extract other metrics from quality_score JSON
+        if q_score_raw and isinstance(q_score_raw, str) and "{" in q_score_raw:
+            try:
                 data = json.loads(q_score_raw)
                 accepted_wc.append(data.get("word_count", 0))
                 accepted_tr.append(data.get("text_ratio", 0))
                 accepted_readability.append(data.get("readability", 0))
-                accepted_unified.append(data.get("unified_score", 0))
-            elif q_score_raw is not None:
-                accepted_unified.append(float(q_score_raw))
-        except:
-            pass
+            except:
+                pass
 
     conn.close()
 
@@ -199,6 +201,7 @@ def get_admin_data():
         "total_pages": total_pages,
         "total_blacklisted": total_blacklisted,
         "total_whitelisted": total_whitelisted,
+        "total_rss_feeds": total_rss_feeds,
         "total_rejected": total_rejected,
         "efficiency": (
             round(total_pages / (total_pages + total_rejected) * 100, 1)
@@ -244,19 +247,8 @@ def get_domain_info(target_domain=None):
     cursor = conn.cursor()
 
     # Get all URLs to extract domains
-    cursor.execute("SELECT url, title, quality_tier, quality_score FROM pages")
+    cursor.execute("SELECT url, title, quality_tier, unified_score FROM pages")
     rows = cursor.fetchall()
-
-    def parse_score(raw_score):
-        if isinstance(raw_score, str) and "{" in raw_score:
-            try:
-                import json
-
-                score_data = json.loads(raw_score)
-                return score_data.get("unified_score", raw_score)
-            except:
-                return raw_score
-        return raw_score
 
     domains_map = {}
     for url, title, tier, score in rows:
@@ -265,7 +257,7 @@ def get_domain_info(target_domain=None):
         if domain not in domains_map:
             domains_map[domain] = []
         domains_map[domain].append(
-            {"url": url, "title": title, "tier": tier, "score": parse_score(score)}
+            {"url": url, "title": title, "tier": tier, "score": score or 0}
         )
 
     unique_domains = sorted(list(domains_map.keys()))
@@ -489,24 +481,39 @@ def admin_crawl():
     url = request.args.get("url")
     depth = request.args.get("depth", "1")
 
+    # Smart tree crawling parameters
+    smart_tree = request.args.get("smart_tree", "true").lower() == "true"
+    min_samples = request.args.get("min_samples", "3")
+    rejection_threshold = request.args.get("rejection_threshold", "0.85")
+    depth_threshold = request.args.get("depth_threshold", "2")
+    max_page_size = request.args.get("max_page_size", "2")
+
     if not url:
         return "URL is required", 400
 
     from flask import Response, stream_with_context
     import subprocess
     import sys
+    import os
 
     def generate():
-        # Use python -u for unbuffered output
-        cmd = [sys.executable, "-u", "crawler.py", url, str(depth)]
+        # Build command with smart tree options
+        cmd = [
+            sys.executable, "-u", "crawler.py", url, str(depth),
+            "--smart-tree" if smart_tree else "--no-smart-tree",
+            "--min-samples", str(min_samples),
+            "--rejection-threshold", str(rejection_threshold),
+            "--depth-threshold", str(depth_threshold),
+            "--max-page-size", str(max_page_size)
+        ]
+
         process = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+            cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__)))  # Project root
         )
 
         if process.stdout:
             for line in iter(process.stdout.readline, ""):
-                # Flask will buffer if we don't yield enough or if the line is short
-                # But for a log viewer, we want line by line
                 yield line
 
         process.wait()
@@ -575,8 +582,10 @@ def manual_insert():
 
         # We manually set quality_tier to 'manual' to distinguish.
         cursor.execute(
-            "INSERT OR REPLACE INTO pages (url, title, content, html, quality_score, quality_tier) VALUES (?, ?, ?, ?, ?, ?)",
-            (url, title, text, html, 0, "manual"),
+            """INSERT OR REPLACE INTO pages
+                (url, title, content, html, quality_score, quality_tier, unified_score)
+                VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (url, title, text, html, 0, "manual", 100),  # Manual inserts get max score
         )
         conn.commit()
         conn.close()

@@ -162,6 +162,12 @@
                 <div id="avg-unified" class="text-3xl font-bold text-success">{{ avg_unified }}</div>
                 <div class="text-[0.7rem] text-text-dim mt-1">Overall Quality</div>
             </div>
+            <div class="stat-card">
+                <div class="text-[0.75rem] font-semibold text-text-dim uppercase tracking-wider mb-2">RSS Feeds
+                </div>
+                <div id="total-rss-feeds" class="text-3xl font-bold text-primary">{{ total_rss_feeds }}</div>
+                <div class="text-[0.7rem] text-text-dim mt-1">Discovered Sources</div>
+            </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
@@ -169,15 +175,68 @@
                 <h2 class="text-xl font-semibold mb-6 flex items-center gap-3">Actions & Active Tracking</h2>
                 <div class="flex gap-3 mb-4">
                     <input type="text" id="crawl-url" placeholder="https://example.com" class="input-field flex-1">
-                    <select id="crawl-depth" class="input-field">
-                        <option value="1">Depth 1</option>
-                        <option value="2">Depth 2</option>
-                        <option value="3">Depth 3</option>
-                    </select>
+                    <input type="number" id="crawl-depth" value="1" min="1" max="10" class="input-field w-24" title="Crawl depth (1-10)">
                     <button onclick="startCrawl(event)" class="btn-primary">Crawl</button>
                 </div>
+
+                <!-- Smart Tree Options -->
+                <div class="bg-glass border border-border p-4 mb-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+                            <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                            </svg>
+                            Smart Tree Crawling
+                        </h3>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="smart-tree-toggle" checked class="w-4 h-4 accent-primary">
+                            <span class="text-[0.8rem] text-text-dim">Enable branch skipping</span>
+                        </label>
+                    </div>
+                    <div class="grid grid-cols-4 gap-4 text-[0.75rem]">
+                        <div>
+                            <label class="text-text-dim block mb-1">Min Samples</label>
+                            <input type="number" id="branch-min-samples" value="3" min="1" max="10" class="input-field w-full py-1">
+                        </div>
+                        <div>
+                            <label class="text-text-dim block mb-1">Rejection Threshold</label>
+                            <input type="number" id="branch-rejection-threshold" value="0.85" min="0.5" max="1" step="0.05" class="input-field w-full py-1">
+                        </div>
+                        <div>
+                            <label class="text-text-dim block mb-1">Depth Threshold</label>
+                            <input type="number" id="branch-depth-threshold" value="2" min="1" max="5" class="input-field w-full py-1">
+                        </div>
+                        <div>
+                            <label class="text-text-dim block mb-1">Max Page Size (MB)</label>
+                            <input type="number" id="max-page-size" value="2" min="1" max="50" step="0.5" class="input-field w-full py-1">
+                        </div>
+                    </div>
+                    <p class="text-[0.7rem] text-text-dim mt-3">
+                        Automatically abandons URL branches with high rejection rates to focus crawling on quality content areas.
+                    </p>
+                </div>
+
+                <!-- Branch Activity Panel -->
+                <div id="branch-panel" class="hidden bg-glass border border-border p-4 mb-4">
+                    <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                        <span class="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
+                        Branch Activity
+                    </h3>
+                    <div id="branch-stats" class="space-y-2 max-h-[150px] overflow-y-auto text-[0.75rem]">
+                        <!-- Branch stats will be inserted here -->
+                    </div>
+                </div>
+
                 <div id="crawl-logs"
                     class="bg-black p-4 font-mono text-[0.75rem] max-h-[200px] overflow-y-auto text-[#31ed31] border border-border mt-4 hidden">
+                </div>
+
+                <!-- Branch Summary (shown after crawl) -->
+                <div id="branch-summary" class="hidden mt-4 p-4 bg-glass border border-primary/30">
+                    <h4 class="text-sm font-bold text-primary mb-2">Crawl Summary</h4>
+                    <div id="branch-summary-content" class="text-[0.8rem] text-text-dim space-y-1">
+                        <!-- Summary content will be inserted here -->
+                    </div>
                 </div>
 
                 <div class="mt-8 border-t border-border pt-6">
@@ -297,7 +356,7 @@
                                 </div>
                             </td>
                             <td class="p-3 font-mono font-bold text-base"
-                                style="color: {% if page.score | float >= 75 %}#10b981{% elif page.score | float >= 55 %}#f59e0b{% else %}#ef4444{% endif %};">
+                                style="color: {% if page.score | float >= 80 %}#10b981{% elif page.score | float >= 40 %}#f59e0b{% else %}#ef4444{% endif %};">
                                 {{ page.score }}
                             </td>
                             <td class="p-3">
@@ -429,6 +488,7 @@
                 document.getElementById('avg-readability').innerText = data.avg_readability;
                 document.getElementById('avg-tr').innerText = data.avg_tr;
                 document.getElementById('avg-unified').innerText = data.avg_unified;
+                document.getElementById('total-rss-feeds').innerText = data.total_rss_feeds;
 
                 rejectionChart.data.labels = data.rejection_labels;
                 rejectionChart.data.datasets[0].data = data.rejection_values;
@@ -495,6 +555,102 @@
             }
         }
 
+        // Branch stats tracking for live UI updates
+        let activeBranches = new Map();
+        let skippedBranches = new Set();
+
+        function updateBranchPanel() {
+            const panel = document.getElementById('branch-panel');
+            const statsDiv = document.getElementById('branch-stats');
+
+            if (activeBranches.size === 0 && skippedBranches.size === 0) {
+                panel.classList.add('hidden');
+                return;
+            }
+
+            panel.classList.remove('hidden');
+            statsDiv.innerHTML = '';
+
+            // Sort by total crawled (descending)
+            const sorted = Array.from(activeBranches.entries())
+                .sort((a, b) => b[1].total - a[1].total);
+
+            // Show skipped branches first
+            skippedBranches.forEach(branchKey => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between py-1 px-2 bg-danger/10 border-l-2 border-danger';
+                const shortKey = branchKey.replace(/^https?:\/\//, '').substring(0, 40);
+                div.innerHTML = '<span class="text-danger font-mono truncate" title="' + branchKey + '">' + shortKey + '...</span><span class="text-[0.65rem] text-danger uppercase font-bold">Abandoned</span>';
+                statsDiv.appendChild(div);
+            });
+
+            // Show active branches
+            sorted.forEach(([branchKey, stats]) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between py-1 px-2 bg-glass border-l-2 border-primary';
+                const shortKey = branchKey.replace(/^https?:\/\//, '').substring(0, 40);
+                const acceptanceRate = stats.total > 0 ? Math.round((stats.accepted / stats.total) * 100) : 0;
+                let rateColor = acceptanceRate >= 50 ? 'text-success' : acceptanceRate >= 20 ? 'text-warning' : 'text-danger';
+                div.innerHTML = '<span class="text-text-dim font-mono truncate" title="' + branchKey + '">' + shortKey + '...</span><span class="text-[0.65rem] ' + rateColor + '">' + stats.accepted + '/' + stats.total + ' (' + acceptanceRate + '%)</span>';
+                statsDiv.appendChild(div);
+            });
+        }
+
+        function updateBranchFromLog(line) {
+            // Parse branch key from log lines
+            const branchMatch = line.match(/Branch:\s*(.+?)\)/);
+            if (!branchMatch) return;
+
+            const branchKey = branchMatch[1].trim();
+            const isAccepted = line.includes('✓ Accepted');
+            const isRejected = line.includes('✗ Rejected');
+
+            if (isAccepted || isRejected) {
+                if (!activeBranches.has(branchKey)) {
+                    activeBranches.set(branchKey, { total: 0, accepted: 0 });
+                }
+                const stats = activeBranches.get(branchKey);
+                stats.total++;
+                if (isAccepted) stats.accepted++;
+            }
+
+            // Check for smart skip
+            const skipMatch = line.match(/\[SMART SKIP\].*branch\s+'(.+?)'/);
+            if (skipMatch) {
+                skippedBranches.add(skipMatch[1].trim());
+            }
+
+            updateBranchPanel();
+        }
+
+        function showBranchSummary() {
+            const summaryDiv = document.getElementById('branch-summary');
+            const contentDiv = document.getElementById('branch-summary-content');
+
+            if (activeBranches.size === 0 && skippedBranches.size === 0) {
+                summaryDiv.classList.add('hidden');
+                return;
+            }
+
+            summaryDiv.classList.remove('hidden');
+
+            const totalCrawled = Array.from(activeBranches.values()).reduce((a, b) => a + b.total, 0);
+            const totalAccepted = Array.from(activeBranches.values()).reduce((a, b) => a + b.accepted, 0);
+
+            let html = '<div class="flex gap-4 mb-2"><span><strong>Total Branches:</strong> ' + activeBranches.size + '</span><span><strong>Abandoned:</strong> ' + (skippedBranches.size > 0 ? '<span class="text-danger">' + skippedBranches.size + '</span>' : '0') + '</span><span><strong>Accepted:</strong> ' + totalAccepted + '/' + totalCrawled + '</span></div>';
+
+            if (skippedBranches.size > 0) {
+                html += '<div class="text-[0.75rem] mt-2"><strong class="text-danger">Abandoned Branches:</strong></div><ul class="list-none text-[0.7rem] text-danger ml-2">';
+                skippedBranches.forEach(branch => {
+                    const short = branch.replace(/^https?:\/\//, '');
+                    html += '<li>• ' + (short.length > 50 ? short.substring(0, 50) + '...' : short) + '</li>';
+                });
+                html += '</ul>';
+            }
+
+            contentDiv.innerHTML = html;
+        }
+
         async function startCrawl() {
             const urlInput = document.getElementById('crawl-url');
             const url = urlInput.value.trim();
@@ -502,14 +658,38 @@
             const logsDiv = document.getElementById('crawl-logs');
             const btn = event.target;
 
+            // Get smart tree options
+            const smartTreeEnabled = document.getElementById('smart-tree-toggle').checked;
+            const minSamples = document.getElementById('branch-min-samples').value;
+            const rejectionThreshold = document.getElementById('branch-rejection-threshold').value;
+            const depthThreshold = document.getElementById('branch-depth-threshold').value;
+            const maxPageSize = document.getElementById('max-page-size').value;
+
             if (!url) return alert('Enter URL');
+
+            // Reset branch tracking
+            activeBranches.clear();
+            skippedBranches.clear();
+            document.getElementById('branch-summary').classList.add('hidden');
 
             btn.disabled = true;
             logsDiv.classList.remove('hidden');
-            logsDiv.innerHTML = '<div class="text-text-dim italic">Initializing crawl process...</div>';
+            logsDiv.innerHTML = '';
+            const initDiv = document.createElement('div');
+            initDiv.className = 'text-text-dim italic';
+            initDiv.textContent = 'Initializing smart tree crawler...';
+            logsDiv.appendChild(initDiv);
 
             try {
-                const response = await fetch(`/admin/crawl?url=${encodeURIComponent(url)}&depth=${depth}`);
+                // Build URL with smart tree parameters
+                let crawlUrl = '/admin/crawl?url=' + encodeURIComponent(url) + '&depth=' + depth;
+                crawlUrl += '&smart_tree=' + smartTreeEnabled;
+                crawlUrl += '&min_samples=' + minSamples;
+                crawlUrl += '&rejection_threshold=' + rejectionThreshold;
+                crawlUrl += '&depth_threshold=' + depthThreshold;
+                crawlUrl += '&max_page_size=' + maxPageSize;
+
+                const response = await fetch(crawlUrl);
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let partial = '';
@@ -520,42 +700,54 @@
 
                     const chunk = decoder.decode(value, { stream: true });
                     const lines = (partial + chunk).split('\n');
-                    partial = lines.pop(); // Last one might be partial
+                    partial = lines.pop();
 
                     lines.forEach(line => {
                         if (!line.trim()) return;
                         const div = document.createElement('div');
                         div.className = 'mb-0.5';
 
+                        // Update branch tracking from log line
+                        updateBranchFromLog(line);
+
                         // Color coding
                         if (line.includes('Accepted')) {
                             div.style.color = colors.success;
-                            div.innerText = '[OK] ' + line;
+                            div.textContent = '[OK] ' + line;
                         } else if (line.includes('Rejected')) {
                             div.style.color = colors.danger;
-                            div.innerText = '[REJECTED] ' + line;
+                            div.textContent = '[REJECTED] ' + line;
+                        } else if (line.includes('[SMART SKIP]')) {
+                            div.style.color = colors.warning;
+                            div.style.fontWeight = '700';
+                            div.textContent = '[SKIP] ' + line;
                         } else if (line.includes('!!!')) {
                             div.style.color = colors.warning;
                             div.style.fontWeight = '700';
-                            div.innerText = '[WARNING] ' + line;
+                            div.textContent = '[WARNING] ' + line;
                         } else {
-                            div.innerText = line;
+                            div.textContent = line;
                         }
 
                         logsDiv.appendChild(div);
                         logsDiv.scrollTop = logsDiv.scrollHeight;
 
                         if (line.includes('[CRAWL COMPLETE]')) {
+                            showBranchSummary();
                             updateStats();
                             setTimeout(() => {
                                 logsDiv.classList.add('hidden');
+                                document.getElementById('branch-panel').classList.add('hidden');
                                 logsDiv.innerHTML = '';
-                            }, 5000);
+                            }, 10000);
                         }
                     });
                 }
             } catch (e) {
-                logsDiv.innerHTML += `<div class="text-danger mt-3 font-bold">Connection Error: ${e}</div>`;
+                const errDiv = document.createElement('div');
+                errDiv.className = 'text-danger mt-3 font-bold';
+                errDiv.textContent = 'Connection Error: ' + e;
+                logsDiv.appendChild(errDiv);
             } finally {
                 btn.disabled = false;
             }

@@ -16,8 +16,13 @@ Usage:
 import os
 import re
 from urllib.parse import urlparse
-from bs4 import BeautifulSoup
+import warnings
+from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 import textstat
+
+# Suppress the XMLParsedAsHTMLWarning which triggers when BeautifulSoup
+# encounters RSS feeds or XML-like content while using the lxml HTML parser.
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 
 # ---------------------------------------------------------------------------
@@ -118,11 +123,19 @@ class _BaseConfig:
         "min_personal_signals_if_corporate": 3,
         "ideal_readability_min": 60,
         "ideal_readability_max": 80,
-        "min_readability": 20,
-        "max_readability": 100,
+        "min_readability": 0,
+        "max_readability": 120,
         "domain_rejection_threshold": 30,
         "consecutive_rejection_threshold": 25,
         "unified_score_threshold": 40,
+        "high_quality_threshold": 80,
+        # Smart tree skipping: abandon unproductive URL branches
+        "branch_depth_threshold": 2,  # Min depth before considering skip
+        "branch_rejection_ratio": 0.85,  # Rejection ratio to trigger skip (0.0-1.0)
+        "branch_min_samples": 3,  # Min pages crawled before evaluating branch
+        "branch_acceptance_bonus": 2,  # Bonus accepted pages to give new branches a chance
+        # Page size limits: abandon pages that are too large (in bytes)
+        "max_page_size_mb": 2,  # Maximum page size in MB (2MB = ~2 million characters)
     }
 
     # ── ML Settings ───────────────────────────────────────────────────────
@@ -131,7 +144,6 @@ class _BaseConfig:
         "model_path": "models/content_classifier.bin",
         "high_confidence_threshold": 0.7,
         "low_confidence_threshold": 0.3,
-        "use_for_uncertain_only": True,
     }
 
     # ML Training Hyper-parameters
@@ -185,6 +197,29 @@ class _BaseConfig:
         r"\?s=",
         r"\?cat=",
         r"\?tag=",
+        # Documentation & Technical Reference
+        r"^https?://docs\.",
+        r"^https?://api\.",
+        r"^https?://developer\.",
+        r"^https?://support\.",
+        r"^https?://help\.",
+        r"/docs/",
+        r"/documentation/",
+        r"/docs-",
+        r"/api-docs/",
+        r"/reference/",
+        r"/manual/",
+        r"/guide/",
+        r"/wiki/",
+        r"/installation",
+        r"/setup",
+        r"/getting-started",
+        # Explicit user-requested or obvious non-article domains
+        r"macports\.org",
+        r"brew\.sh",
+        r"npmbuilds\.com",
+        r"crates\.io",
+        r"pypi\.org",
     ]
 
     # ── CTA / Marketing ───────────────────────────────────────────────────
@@ -566,13 +601,18 @@ def calculate_text_ratio(html_content: str) -> float:
     return min(1.0, float(adjusted_ratio))
 
 
-def calculate_ad_score(html: str) -> int:
+def calculate_ad_score(html: str) -> tuple[int, int]:
     """
     Calculates an 'ad score' (0-100) based on detected ad/tracking tech.
     Higher score means more ad-heavy.
+
+    Returns:
+        Tuple of (ad_score, ad_tech_count) where:
+        - ad_score: 0-100 score representing ad heaviness
+        - ad_tech_count: count of distinct ad networks/trackers found
     """
     if not html:
-        return 0
+        return 0, 0
 
     points = 0
     html_lower = html.lower()
@@ -603,7 +643,9 @@ def calculate_ad_score(html: str) -> int:
     if iframe_count > 3:
         points += min(15, (iframe_count - 3) * 3)
 
-    return min(100, points)
+    ad_score = min(100, points)
+    ad_tech_count = networks_found + trackers_found
+    return ad_score, ad_tech_count
 
 
 def calculate_corporate_score(url: str, html: str, text: str) -> int:
@@ -657,9 +699,21 @@ def calculate_corporate_score(url: str, html: str, text: str) -> int:
         "/platform",
         "/checkout",
         "/cart",
+        "/bylaws",
+        "/annual-reports",
+        "/sponsors",
+        "/documentation",
+        "/docs",
+        "/api-reference",
+        "/pricing",
     ]
     if any(p in url_lower for p in commercial_paths):
-        score += 45
+        # Docs are high corporate signal but not necessarily "commercial" in sales sense,
+        # but they are definitely organizational.
+        if "/docs" in url_lower or "/documentation" in url_lower:
+            score += 45
+        else:
+            score += 25
 
     # E-commerce detection
     if is_ecommerce_page(html):
@@ -668,6 +722,20 @@ def calculate_corporate_score(url: str, html: str, text: str) -> int:
     # Spam/Lead-gen services
     if detect_spam_services(url, text):
         score += 75
+
+    # Corporate / Service Schema
+    org_schemas = [
+        "organisation",
+        "organization",
+        "service",
+        "product",
+        "corporation",
+        "localbusiness",
+    ]
+    if any(s in html_lower for s in org_schemas) and '"@type"' in html_lower:
+        # Check for root specifically to avoid penalizing blog posts on subpaths
+        if parsed_url.path.strip("/") in ["", "index.html", "index.php"]:
+            score += 40
 
     # 3. Commercial Metadata (High signal for business sites)
     # Social meta tags usually indicate professional marketing
@@ -723,8 +791,8 @@ def calculate_corporate_score(url: str, html: str, text: str) -> int:
         "stay tuned",
         "subscribe to our push-notifications",
     ]
-    mill_hits = sum(10 for phrase in mill_phrases if phrase in text_lower)
-    score += min(mill_hits, 40)
+    mill_hits = sum(5 for phrase in mill_phrases if phrase in text_lower)
+    score += min(mill_hits, 25)
 
     # Affiliate / Ad-Revenue Signals
     affiliate_signals = [
@@ -754,8 +822,26 @@ def calculate_corporate_score(url: str, html: str, text: str) -> int:
         "register",
         "create account",
     ]
+    # CTA score should be less significant for long-form content
     cta_count = count_buttons_with_text(html, cta_keywords)
-    score += min(cta_count * 15, 60)
+    word_count = len(text.split())
+    if word_count > 600:
+        score += min(cta_count * 4, 20)
+    else:
+        score += min(cta_count * 8, 40)
+
+    # 5.5. Personal Blog Signals (Negative score = better)
+    personal_keywords = config.PERSONAL_DOMAIN_KEYWORDS
+    # Use word boundary to avoid matching substring (e.g., 'me' in 'merch')
+    personal_hits = 0
+    for kw in personal_keywords:
+        pattern = rf"\b{re.escape(kw)}\b"
+        if re.search(pattern, url_lower) or re.search(
+            pattern, text_lower[:800], re.IGNORECASE
+        ):
+            personal_hits += 1
+
+    score -= min(personal_hits * 10, 30)
 
     # 6. Service Description Language (Sales Copy)
     sales_copy = [
@@ -766,6 +852,17 @@ def calculate_corporate_score(url: str, html: str, text: str) -> int:
         "maximize your",
         "unleash",
         "streamline your",
+        "next-generation",
+        "community platform",
+        "collaboration",
+        "foundation",
+        "non-profit",
+        "installation guide",
+        "quickstart",
+        "getting started",
+        "api reference",
+        "developer guide",
+        "system requirements",
     ]
     if any(phrase in text_lower for phrase in sales_copy):
         score += 25
@@ -799,12 +896,13 @@ def calculate_unified_score(scores: dict) -> int:
 
     # 3. Readability (Max 50)
     readability = scores.get("readability", 0)
-    if 40 < readability <= 100:
+    if readability > 40:
         base_points += 50
-    elif 20 <= readability <= 40:
+    elif 15 <= readability <= 40:
         base_points += 30
-    elif 0 <= readability < 20:
-        base_points += 10
+    else:
+        # Very complex academic/dense text
+        base_points += 15
 
     # 4. Identity Signals (Corporate Penalty)
     corporate = scores.get("corporate_score", 0)
@@ -870,13 +968,37 @@ def evaluate_page_quality(
         if current_domain in [d.lower() for d in whitelist]:
             is_whitelisted = True
 
+    # PHASE 0: URL Pattern Hard Rejection
+    for pattern in config.EXCLUDED_URL_PATTERNS:
+        if re.search(pattern, url, re.IGNORECASE):
+            return {
+                "is_acceptable": False,
+                "rejection_reasons": ["URL matches excluded pattern"],
+                "scores": {"excluded_pattern": True},
+                "quality_tier": "rejected",
+            }
+
+    # PHASE 0.5: Root Landing Page check
+    # Many homepages are just landing pages, not content.
+    if not is_whitelisted:
+        if is_homepage_not_article(url, html):
+            return {
+                "is_acceptable": False,
+                "rejection_reasons": [
+                    "Generic landing page / Root domain without blog content"
+                ],
+                "scores": {"landing_page": True},
+                "quality_tier": "rejected",
+            }
+
     # PHASE 1: COMPREHENSIVE SCORE PRE-FILTER
     # Calculate scores early to decide on hard rejection
     corp_score = calculate_corporate_score(url, html, text)
 
     if not is_whitelisted:
-        # If the page is overwhelmingly corporate (score > 80), reject immediately
-        if corp_score > 80:
+        # Only reject if overwhelmingly corporate (score > 90)
+        # 80 was too low and caught many blogs with newsletters/products
+        if corp_score > 90:
             return {
                 "is_acceptable": False,
                 "rejection_reasons": ["Corporate page"],
@@ -890,12 +1012,14 @@ def evaluate_page_quality(
     word_count = len(text.split())
     readability = calculate_readability(text)
 
+    ad_score, ad_tech_count = calculate_ad_score(html)
     scores = {
         "text_ratio": text_ratio,
         "word_count": word_count,
         "corporate_score": corp_score,
         "readability": readability,
-        "ad_score": calculate_ad_score(html),
+        "ad_score": ad_score,
+        "ad_tech_count": ad_tech_count,
     }
 
     unified_score = calculate_unified_score(scores)
@@ -909,6 +1033,9 @@ def evaluate_page_quality(
     else:
         is_acceptable = unified_score >= config.THRESHOLDS["unified_score_threshold"]
 
+    # Initialize ml_accept to False (will be updated if ML is used)
+    ml_accept = False
+
     # PHASE 3: ML Classification refinement (Kept for whitelisted domains)
     # Note: ML_CONFIG is now available as config.ML_CONFIG because we are in config.py
     # But for compatibility we can look it up from config object or global if defined.
@@ -919,9 +1046,6 @@ def evaluate_page_quality(
 
         # We use ML if it's acceptable by rules, or if it's borderline, or if forced
         should_use_ml = True
-        if not force_ml and config.ML_CONFIG.get("use_for_uncertain_only", True):
-            should_use_ml = unified_score < 80
-
         if should_use_ml:
             try:
                 classifier = get_classifier(config.ML_CONFIG["model_path"])
@@ -958,7 +1082,10 @@ def evaluate_page_quality(
     if not is_acceptable:
         # Only add score-based rejection reasons if not whitelisted
         if not is_whitelisted:
-            rejection_reasons.append(f"Unified quality score too low ({unified_score})")
+            if unified_score < config.THRESHOLDS["unified_score_threshold"]:
+                rejection_reasons.append(
+                    f"Unified quality score too low ({unified_score})"
+                )
 
             if text_ratio < config.THRESHOLDS["min_text_ratio"]:
                 rejection_reasons.append(
@@ -971,15 +1098,15 @@ def evaluate_page_quality(
                 rejection_reasons.append(
                     f"Readability score out of range ({readability:.1f})"
                 )
-            if corp_score >= 10:
+            if corp_score >= 40:
                 rejection_reasons.append("Corporate page")
 
     # Unified Tier determination
-    if unified_score >= 80:
+    if not is_acceptable:
+        tier = "rejected"
+    elif unified_score >= config.THRESHOLDS["high_quality_threshold"]:
         tier = "high"
-    elif (
-        unified_score >= config.THRESHOLDS["unified_score_threshold"] or is_whitelisted
-    ):
+    elif unified_score >= config.THRESHOLDS["unified_score_threshold"]:
         tier = "medium"
     else:
         tier = "low"

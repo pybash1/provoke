@@ -44,11 +44,20 @@ def is_likely_homepage(url: str, title: str, content: str) -> bool:
 
         # Root or near-root URLs
         parsed = urlparse(url)
-        path_parts = [p for p in parsed.path.split("/") if p]
+        path = parsed.path.strip("/")
 
-        # Root URL or very shallow
-        if len(path_parts) <= 1:
-            return True
+        # Only consider it a likely homepage if the path is empty (root)
+        # AND the title is very generic/short.
+        if not path:
+            # If title is very short and doesn't look like a post title
+            title_words = title.split()
+            if len(title_words) <= 3 and not any(
+                c in title for c in ["|", "-", ":", "–"]
+            ):
+                return True
+            # Or if it matches a explicit indicator
+            if any(indicator in title_lower for indicator in homepage_indicators):
+                return True
 
     return False
 
@@ -290,7 +299,11 @@ class ContentClassifier:
             # Use the 'label' which comes from our enhanced check (defaults to adjusted threshold)
 
             if label == "good":
-                return True, f"ml_uncertain_accept ({check_reason})", confidence
+                return (
+                    False,
+                    f"ml_uncertain_reject (Low confidence: {check_reason})",
+                    confidence,
+                )
             else:
                 return False, f"ml_uncertain_reject ({check_reason})", confidence
 

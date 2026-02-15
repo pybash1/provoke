@@ -214,7 +214,7 @@ def is_homepage_not_article(url: str, html: str) -> bool:
                 break
 
     # 4. Decision
-    if blog_link_count >= 3:
+    if blog_link_count >= 1:
         return False  # Acceptable homepage with blog
     else:
         return True  # Homepage without blog content

@@ -38,7 +38,11 @@ class SearchEngine:
                     pages.title,
                     pages.url,
                     snippet(pages_trigram, 1, '<mark>', '</mark>', '...', 32) as snip,
-                    rank
+                    rank,
+                    pages.quality_tier,
+                    CAST(COALESCE(json_extract(pages.quality_score, '$.ad_score'), 0) AS INTEGER) as ad_score,
+                    CAST(COALESCE(json_extract(pages.quality_score, '$.ad_tech_count'), 0) AS INTEGER) as ad_count,
+                    pages.unified_score as unified_score
                 FROM pages_trigram
                 JOIN pages ON pages.id = pages_trigram.rowid
                 WHERE pages_trigram MATCH ?
@@ -60,6 +64,10 @@ class SearchEngine:
                             "url": row[2],
                             "snippet": row[3],
                             "score": round((-row[4] * 0.5) + (sim_score * 10), 2),
+                            "tier": row[5],
+                            "ad_score": row[6] or 0,
+                            "ad_count": row[7] or 0,
+                            "unified_score": row[8] or 0,
                         }
                     )
                 # Sort by combined score
@@ -69,7 +77,15 @@ class SearchEngine:
             # Only feasible because the dataset is currently small (around 400-1000 pages)
             if not results or (len(results) < 5 and results[0]["score"] < 5):
                 sql_fuzzy = """
-                    SELECT title, url, content, similarity(title, ?) as sim
+                    SELECT
+                        title,
+                        url,
+                        content,
+                        similarity(title, ?) as sim,
+                        quality_tier,
+                        CAST(COALESCE(json_extract(quality_score, '$.ad_score'), 0) AS INTEGER) as ad_score,
+                        CAST(COALESCE(json_extract(quality_score, '$.ad_tech_count'), 0) AS INTEGER) as ad_count,
+                        unified_score as unified_score
                     FROM pages
                     WHERE sim > 0.3
                     AND pages.url NOT LIKE '%.xml'
@@ -92,6 +108,10 @@ class SearchEngine:
                             "url": row[1],
                             "snippet": snippet,
                             "score": round(row[3] * 10, 2),
+                            "tier": row[4],
+                            "ad_score": row[5] or 0,
+                            "ad_count": row[6] or 0,
+                            "unified_score": row[7] or 0,
                         }
                     )
 

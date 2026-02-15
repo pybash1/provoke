@@ -9,6 +9,82 @@ from provoke.config import config, evaluate_page_quality
 from provoke.utils.logger import QualityLogger
 import re
 from datetime import datetime
+from dataclasses import dataclass, field
+
+
+@dataclass
+class BranchStats:
+    """Tracks crawling statistics for a URL branch (tree)."""
+
+    total_crawled: int = 0
+    accepted_count: int = 0
+    max_depth_reached: int = 0
+    skipped: bool = False
+    # Track by depth level for fine-grained analysis
+    by_depth: dict = field(
+        default_factory=dict
+    )  # depth -> {"total": int, "accepted": int}
+
+    def record_result(self, depth: int, accepted: bool):
+        """Record a crawl result at a given depth."""
+        self.total_crawled += 1
+        if accepted:
+            self.accepted_count += 1
+        if depth > self.max_depth_reached:
+            self.max_depth_reached = depth
+
+        # Track by depth
+        if depth not in self.by_depth:
+            self.by_depth[depth] = {"total": 0, "accepted": 0}
+        self.by_depth[depth]["total"] += 1
+        if accepted:
+            self.by_depth[depth]["accepted"] += 1
+
+    @property
+    def rejection_ratio(self) -> float:
+        """Returns the ratio of rejected pages (0.0-1.0)."""
+        if self.total_crawled == 0:
+            return 0.0
+        return 1.0 - (self.accepted_count / self.total_crawled)
+
+    def should_skip(self, current_depth: int) -> bool:
+        """
+        Determine if this branch should be skipped based on quality metrics.
+        Returns True if the branch is unproductive and should be abandoned.
+        """
+        if self.skipped:
+            return True
+
+        thresholds = config.THRESHOLDS
+        min_samples = thresholds.get("branch_min_samples", 3)
+        depth_threshold = thresholds.get("branch_depth_threshold", 2)
+        rejection_threshold = thresholds.get("branch_rejection_ratio", 0.85)
+        acceptance_bonus = thresholds.get("branch_acceptance_bonus", 2)
+
+        # Don't skip until we've crawled enough to make a decision
+        if self.total_crawled < min_samples:
+            return False
+
+        # Don't skip until we're at sufficient depth (give shallow pages a chance)
+        if current_depth < depth_threshold:
+            return False
+
+        # Check if we've had ANY accepted pages (with bonus for new branches)
+        effective_accepted = self.accepted_count + acceptance_bonus
+        effective_total = self.total_crawled + acceptance_bonus
+        effective_ratio = 1.0 - (effective_accepted / effective_total)
+
+        # Skip if rejection ratio is too high
+        if effective_ratio >= rejection_threshold:
+            self.skipped = True
+            return True
+
+        return False
+
+    def __str__(self):
+        ratio = self.rejection_ratio
+        status = "SKIPPED" if self.skipped else "active"
+        return f"[{status}] {self.accepted_count}/{self.total_crawled} accepted ({ratio:.0%} rejection), depth {self.max_depth_reached}"
 
 
 class SimpleCrawler:
@@ -31,6 +107,9 @@ class SimpleCrawler:
         self.domain_rejections = {}  # Tracks rejections per domain in current session
         self.consecutive_rejections = 0  # GLOBAL consecutive rejections
         self.stop_requested = False  # Flag to stop the entire crawl
+        self.branch_stats = (
+            {}
+        )  # URL branch -> BranchStats mapping for smart tree skipping
 
     def init_db(self):
         conn = sqlite3.connect(self.db_file)
@@ -58,6 +137,8 @@ class SimpleCrawler:
             cursor.execute("ALTER TABLE pages ADD COLUMN quality_tier TEXT")
         if "html" not in columns:
             cursor.execute("ALTER TABLE pages ADD COLUMN html TEXT")
+        if "unified_score" not in columns:
+            cursor.execute("ALTER TABLE pages ADD COLUMN unified_score INTEGER")
 
         # Create blacklisted_domains table
         cursor.execute(
@@ -170,6 +251,47 @@ class SimpleCrawler:
         parsed = urlparse(url)
         return f"{parsed.scheme}://{parsed.netloc}{parsed.path}".rstrip("/")
 
+    def get_branch_key(self, url, depth=0):
+        """
+        Get the branch identifier for a URL.
+        At depth 0, this is the seed URL (base domain/path).
+        At deeper depths, we group URLs by their parent path structure.
+        """
+        parsed = urlparse(url)
+        path_parts = parsed.path.strip("/").split("/")
+
+        if depth == 0:
+            # At root, the branch is the base URL (scheme + netloc + first path segment if any)
+            base_path = path_parts[0] if path_parts and path_parts[0] else ""
+            return f"{parsed.scheme}://{parsed.netloc}/{base_path}".rstrip("/")
+
+        # For deeper levels, group by parent path to track "subtrees"
+        # Take path up to current depth level to identify the branch
+        relevant_depth = min(depth, len(path_parts))
+        branch_path = (
+            "/".join(path_parts[:relevant_depth]) if relevant_depth > 0 else ""
+        )
+        return f"{parsed.scheme}://{parsed.netloc}/{branch_path}".rstrip("/")
+
+    def should_skip_branch(self, url, depth):
+        """
+        Check if the current URL branch should be skipped due to low quality.
+        Returns True if the branch is abandoned, False otherwise.
+        """
+        branch_key = self.get_branch_key(url, depth)
+        stats = self.branch_stats.get(branch_key)
+
+        if stats is None:
+            return False
+
+        if stats.should_skip(depth):
+            if not hasattr(stats, "_logged_skip"):
+                print(f"  ↳ [SMART SKIP] Abandoning branch '{branch_key}': {stats}")
+                stats._logged_skip = True
+            return True
+
+        return False
+
     def is_valid_url(self, url):
         normalized = self.normalize_url(url)
         parsed = urlparse(url)
@@ -194,7 +316,7 @@ class SimpleCrawler:
 
         return bool(parsed.netloc) and normalized not in self.visited
 
-    def crawl(self, url, depth=0):
+    def crawl(self, url, depth=0, parent_branch=None):
         if self.stop_requested:
             return
 
@@ -202,10 +324,24 @@ class SimpleCrawler:
         if depth > self.max_depth or normalized in self.visited:
             return
 
-        print(f"Crawling: {url} (Normalized: {normalized}, Depth: {depth})")
+        # Smart tree skipping: check if this branch should be abandoned
+        if self.should_skip_branch(url, depth):
+            return
+
+        # Get or create branch stats for tracking
+        branch_key = self.get_branch_key(url, depth)
+        if branch_key not in self.branch_stats:
+            self.branch_stats[branch_key] = BranchStats()
+        branch_stats = self.branch_stats[branch_key]
+
+        print(
+            f"Crawling: {url} (Depth: {depth}, Branch: {branch_key.split('/')[-1] or 'root'})"
+        )
         self.visited.add(normalized)
 
         try:
+            html = None
+
             if self.use_dynamic:
                 self.start_browser()
                 if not self.browser:
@@ -220,10 +356,32 @@ class SimpleCrawler:
                 html = page.content()
                 page.close()
             else:
-                response = requests.get(url, timeout=config.CRAWLER_TIMEOUT)
+                headers = {"User-Agent": config.USER_AGENT}
+                response = requests.get(
+                    url, timeout=config.CRAWLER_TIMEOUT, headers=headers
+                )
                 if response.status_code != 200:
+                    # Record rejection for failed fetches too
+                    branch_stats.record_result(depth, accepted=False)
                     return
                 html = response.text
+
+            # Check page size limit - abandon pages that are too large
+            max_size_bytes = config.THRESHOLDS.get("max_page_size_mb", 2) * 1024 * 1024
+            page_size = len(html.encode("utf-8"))
+            if page_size > max_size_bytes:
+                size_mb = page_size / (1024 * 1024)
+                max_mb = max_size_bytes / (1024 * 1024)
+                print(
+                    f"  ↳ [SIZE SKIP] Abandoning {url}: {size_mb:.1f}MB exceeds {max_mb}MB limit"
+                )
+                branch_stats.record_result(depth, accepted=False)
+                self.quality_logger.log_rejection(
+                    url,
+                    [f"Page too large ({size_mb:.1f}MB)"],
+                    {"page_size_mb": round(size_mb, 2)},
+                )
+                return
 
             soup = BeautifulSoup(html, "lxml")
 
@@ -237,8 +395,11 @@ class SimpleCrawler:
             )
 
             if quality_result["is_acceptable"]:
+                # Record acceptance in branch stats
+                branch_stats.record_result(depth, accepted=True)
+
                 self.quality_logger.log_acceptance(url, quality_result["quality_tier"])
-                print(f"Accepted {url} (Tier: {quality_result['quality_tier']})")
+                print(f"  ✓ Accepted {url} (Tier: {quality_result['quality_tier']})")
                 self.save_page(
                     url,
                     str(title),
@@ -250,11 +411,14 @@ class SimpleCrawler:
                 # Reset consecutive rejections on acceptance
                 self.consecutive_rejections = 0  # Reset global counter
             else:
+                # Record rejection in branch stats
+                branch_stats.record_result(depth, accepted=False)
+
                 self.quality_logger.log_rejection(
                     url, quality_result["rejection_reasons"], quality_result["scores"]
                 )
                 print(
-                    f"Rejected {url}: {', '.join(quality_result['rejection_reasons'])}"
+                    f"  ✗ Rejected {url}: {', '.join(quality_result['rejection_reasons'])}"
                 )
 
                 # Track domain rejections (total in session)
@@ -281,7 +445,9 @@ class SimpleCrawler:
                     )
                     self.stop_requested = True
 
-                # Continue to find and crawl links even if this page was rejected
+                # Check if branch should be abandoned after this rejection
+                if self.should_skip_branch(url, depth):
+                    return
 
             # Find and crawl links
             if depth < self.max_depth:
@@ -289,75 +455,21 @@ class SimpleCrawler:
                     href = str(link["href"])
                     next_url = urljoin(url, href)
                     if self.is_valid_url(next_url):
-                        self.crawl(next_url, depth + 1)
+                        # Check if the new URL would be in an abandoned branch
+                        next_branch = self.get_branch_key(next_url, depth + 1)
+                        if (
+                            next_branch in self.branch_stats
+                            and self.branch_stats[next_branch].skipped
+                        ):
+                            continue  # Skip links to abandoned branches
+
+                        self.crawl(next_url, depth + 1, parent_branch=branch_key)
                         time.sleep(config.CRAWLER_POLITE_DELAY)  # Polite crawling
         except Exception as e:
             print(f"Error crawling {url}: {e}")
-
-    def extract_and_save_rss_feeds(self, url, html):
-        """Extract RSS feed links from HTML and save them to rss_feeds table."""
-        if not html:
-            return
-        try:
-            soup = BeautifulSoup(html, "lxml")
-            feeds = []
-            domain = urlparse(url).netloc
-
-            for link in soup.find_all("link", rel="alternate"):
-                link_type = link.get("type", "").lower()
-                href = link.get("href", "")
-                if not href:
-                    continue
-                full_url = urljoin(url, href)
-                is_rss_type = link_type == "application/rss+xml"
-                ends_with_xml = full_url.lower().endswith(".xml")
-                if is_rss_type or ends_with_xml:
-                    feeds.append({
-                        "url": full_url,
-                        "type": link.get("type", "unknown"),
-                        "title": link.get("title", ""),
-                    })
-            if feeds:
-                conn = sqlite3.connect(self.db_file)
-                cursor = conn.cursor()
-                # Ensure rss_feeds table exists
-                cursor.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS rss_feeds (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        url TEXT UNIQUE NOT NULL,
-                        discovered_from TEXT,
-                        title TEXT,
-                        feed_type TEXT,
-                        source_domain TEXT,
-                        date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        last_checked TIMESTAMP,
-                        entry_count INTEGER,
-                        is_active BOOLEAN DEFAULT 1,
-                        error_count INTEGER DEFAULT 0
-                    )
-                    """
-                )
-                for feed in feeds:
-                    cursor.execute(
-                        """
-                        INSERT OR IGNORE INTO rss_feeds
-                        (url, discovered_from, title, feed_type, source_domain, date_added)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            feed["url"],
-                            url,
-                            feed["title"],
-                            feed["type"],
-                            domain,
-                            datetime.now().isoformat(),
-                        ),
-                    )
-                conn.commit()
-                conn.close()
-        except Exception:
-            pass
+            # Record as rejection on error
+            if branch_key in self.branch_stats:
+                self.branch_stats[branch_key].record_result(depth, accepted=False)
 
     def save_page(
         self, url, title, content, html, quality_score=None, quality_tier=None
@@ -366,13 +478,30 @@ class SimpleCrawler:
             conn = sqlite3.connect(self.db_file)
             cursor = conn.cursor()
 
-            # Serialize quality_score if it's a dict
+            # Extract unified_score from quality_score dict
+            unified_score = None
             if isinstance(quality_score, dict):
-                quality_score = json.dumps(quality_score)
+                unified_score = quality_score.get("unified_score")
+                quality_score_json = json.dumps(quality_score)
+            elif isinstance(quality_score, (int, float)):
+                unified_score = int(quality_score)
+                quality_score_json = str(quality_score)
+            else:
+                quality_score_json = quality_score
 
             cursor.execute(
-                "INSERT OR REPLACE INTO pages (url, title, content, html, quality_score, quality_tier) VALUES (?, ?, ?, ?, ?, ?)",
-                (url, title, content, html, quality_score, quality_tier),
+                """INSERT OR REPLACE INTO pages
+                    (url, title, content, html, quality_score, quality_tier, unified_score)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    url,
+                    title,
+                    content,
+                    html,
+                    quality_score_json,
+                    quality_tier,
+                    unified_score,
+                ),
             )
             conn.commit()
             conn.close()
@@ -382,6 +511,57 @@ class SimpleCrawler:
 
         except sqlite3.Error as e:
             print(f"Error saving to database: {e}")
+
+    def print_branch_summary(self):
+        """Print summary of all branches and their outcomes."""
+        if not self.branch_stats:
+            return
+
+        print("\n" + "=" * 60)
+        print("BRANCH CRAWL SUMMARY")
+        print("=" * 60)
+
+        # Sort by total crawled (descending) then by acceptance ratio
+        sorted_branches = sorted(
+            self.branch_stats.items(),
+            key=lambda x: (x[1].total_crawled, -x[1].rejection_ratio),
+            reverse=True,
+        )
+
+        skipped_count = sum(1 for _, stats in sorted_branches if stats.skipped)
+        total_pages = sum(stats.total_crawled for _, stats in sorted_branches)
+        total_accepted = sum(stats.accepted_count for _, stats in sorted_branches)
+
+        print(f"Total branches tracked: {len(self.branch_stats)}")
+        print(f"Branches abandoned (skipped): {skipped_count}")
+        print(f"Total pages crawled: {total_pages}")
+        print(
+            f"Total pages accepted: {total_accepted} ({total_accepted/total_pages:.0%})"
+            if total_pages > 0
+            else ""
+        )
+        print("-" * 60)
+
+        # Show top branches by volume
+        print("\nTop branches by activity:")
+        for branch_key, stats in sorted_branches[:10]:
+            status = "[SKIPPED]" if stats.skipped else "[active] "
+            acceptance_pct = (
+                (stats.accepted_count / stats.total_crawled * 100)
+                if stats.total_crawled > 0
+                else 0
+            )
+            # Truncate long branch keys for display
+            display_key = (
+                branch_key[:50] + "..." if len(branch_key) > 50 else branch_key
+            )
+            print(f"  {status} {display_key}")
+            print(
+                f"          {stats.accepted_count}/{stats.total_crawled} accepted ({acceptance_pct:.0f}%), max depth {stats.max_depth_reached}"
+            )
+
+        if len(sorted_branches) > 10:
+            print(f"  ... and {len(sorted_branches) - 10} more branches")
 
     def blacklist_domain(self, domain):
         if domain not in self.blacklist:
@@ -399,7 +579,7 @@ class SimpleCrawler:
             except sqlite3.Error as e:
                 print(f"Error blacklisting domain: {e}")
 
-    def extract_and_save_rss_feeds(self, html, base_url):
+    def extract_and_save_rss_feeds(self, url, html):
         """Extract RSS feeds from HTML and save them to the rss_feeds table."""
         if not html:
             return
@@ -408,30 +588,39 @@ class SimpleCrawler:
             from datetime import datetime
 
             soup = BeautifulSoup(html, "lxml")
-            domain = urlparse(base_url).netloc
+            domain = urlparse(url).netloc
             feeds_to_add = []
 
             # Look for RSS/Atom feed links
             for link in soup.find_all("link", rel="alternate"):
-                link_type = link.get("type", "").lower()
+                # Ensure we have a string for type and href
+                link_type = link.get("type", "")
+                if isinstance(link_type, list):
+                    link_type = " ".join(link_type)
+                link_type = (link_type or "").lower()
+
                 href = link.get("href", "")
+                if isinstance(href, list):
+                    href = href[0]
 
                 if not href:
                     continue
 
-                full_url = urljoin(base_url, href)
+                full_url = urljoin(url, href)
 
                 # Only include if type is application/rss+xml or URL ends with .xml
                 is_rss_type = link_type == "application/rss+xml"
                 ends_with_xml = full_url.lower().endswith(".xml")
 
                 if is_rss_type or ends_with_xml:
-                    feeds_to_add.append({
-                        "url": full_url,
-                        "title": link.get("title", ""),
-                        "type": link.get("type", "unknown"),
-                        "domain": domain,
-                    })
+                    feeds_to_add.append(
+                        {
+                            "url": full_url,
+                            "title": link.get("title", ""),
+                            "type": link.get("type", "unknown"),
+                            "domain": domain,
+                        }
+                    )
 
             if feeds_to_add:
                 conn = sqlite3.connect(self.db_file)
@@ -466,7 +655,7 @@ class SimpleCrawler:
                             """,
                             (
                                 feed["url"],
-                                base_url,
+                                url,
                                 feed["title"],
                                 feed["type"],
                                 feed["domain"],
@@ -486,14 +675,74 @@ class SimpleCrawler:
 if __name__ == "__main__":
     import sys
     import os
+    import argparse
 
-    if len(sys.argv) < 2:
-        print("Usage: uv run python crawler.py <url_or_file> [max_depth] [--dynamic]")
-        sys.exit(1)
+    # Set up argument parser for better CLI experience
+    parser = argparse.ArgumentParser(description="Smart Tree Web Crawler")
+    parser.add_argument("input", help="URL or file containing URLs to crawl")
+    parser.add_argument(
+        "depth", type=int, nargs="?", default=1, help="Maximum crawl depth (default: 1)"
+    )
+    parser.add_argument(
+        "--dynamic", action="store_true", help="Use Playwright for JavaScript rendering"
+    )
+    parser.add_argument(
+        "--smart-tree",
+        action="store_true",
+        default=True,
+        help="Enable smart tree branch skipping (default: enabled)",
+    )
+    parser.add_argument(
+        "--no-smart-tree",
+        action="store_true",
+        help="Disable smart tree branch skipping",
+    )
+    parser.add_argument(
+        "--min-samples",
+        type=int,
+        default=3,
+        help="Minimum samples before branch skip decision (default: 3)",
+    )
+    parser.add_argument(
+        "--rejection-threshold",
+        type=float,
+        default=0.85,
+        help="Rejection ratio threshold for skipping (default: 0.85)",
+    )
+    parser.add_argument(
+        "--depth-threshold",
+        type=int,
+        default=2,
+        help="Minimum depth before checking branch skip (default: 2)",
+    )
+    parser.add_argument(
+        "--max-page-size",
+        type=float,
+        default=2,
+        help="Maximum page size in MB (default: 2)",
+    )
 
-    input_arg = sys.argv[1]
-    depth = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else 1
-    use_dynamic = "--dynamic" in sys.argv
+    args = parser.parse_args()
+
+    # Override config thresholds with CLI arguments if provided
+    if args.min_samples != 3:
+        config.THRESHOLDS["branch_min_samples"] = args.min_samples
+    if args.rejection_threshold != 0.85:
+        config.THRESHOLDS["branch_rejection_ratio"] = args.rejection_threshold
+    if args.depth_threshold != 2:
+        config.THRESHOLDS["branch_depth_threshold"] = args.depth_threshold
+    if args.max_page_size != 2:
+        config.THRESHOLDS["max_page_size_mb"] = args.max_page_size
+
+    # Disable smart tree if requested
+    if args.no_smart_tree:
+        # Set rejection threshold to 1.0 (never skip)
+        config.THRESHOLDS["branch_rejection_ratio"] = 1.0
+        print("[INFO] Smart tree crawling disabled - will crawl all branches")
+
+    input_arg = args.input
+    depth = args.depth
+    use_dynamic = args.dynamic
 
     urls_to_crawl = []
     if os.path.isfile(input_arg):
@@ -514,11 +763,19 @@ if __name__ == "__main__":
     try:
         for url in urls_to_crawl:
             print(f"\n>>> Starting crawl from input URL: {url}")
+            print(
+                f"[CONFIG] Smart Tree: {'enabled' if args.no_smart_tree == False else 'disabled'}, "
+                f"Min Samples: {config.THRESHOLDS.get('branch_min_samples', 3)}, "
+                f"Rejection Threshold: {config.THRESHOLDS.get('branch_rejection_ratio', 0.85):.0%}, "
+                f"Depth Threshold: {config.THRESHOLDS.get('branch_depth_threshold', 2)}"
+            )
             # Reset stop markers for each new seed URL
             crawler.stop_requested = False
             crawler.consecutive_rejections = 0
+            # Note: We keep branch_stats across seeds to learn from previous branches
             crawler.crawl(url)
     finally:
         crawler.close_browser()
         crawler.quality_logger.print_summary()
+        crawler.print_branch_summary()
     print("[CRAWL COMPLETE]")
