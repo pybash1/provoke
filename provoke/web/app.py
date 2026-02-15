@@ -28,8 +28,15 @@ def index():
     return render_template("index.html", query=query, results=results)
 
 
-def get_lists():
+def get_db_connection():
     conn = sqlite3.connect(config.DATABASE_PATH)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
+    return conn
+
+
+def get_lists():
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT domain FROM blacklisted_domains")
     blacklisted = [row[0] for row in cursor.fetchall()]
@@ -40,7 +47,7 @@ def get_lists():
 
 
 def get_admin_data():
-    conn = sqlite3.connect(config.DATABASE_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # Ensure tables exist and handle migrations
@@ -244,7 +251,7 @@ def get_domain_info(target_domain=None):
     import sqlite3
     from urllib.parse import urlparse
 
-    conn = sqlite3.connect(config.DATABASE_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # Get all URLs to extract domains
@@ -359,7 +366,7 @@ def blacklist_add():
     if domain:
         import sqlite3
 
-        conn = sqlite3.connect(config.DATABASE_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
             "INSERT OR IGNORE INTO blacklisted_domains (domain) VALUES (?)", (domain,)
@@ -376,7 +383,7 @@ def blacklist_remove():
     if domain:
         import sqlite3
 
-        conn = sqlite3.connect(config.DATABASE_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM blacklisted_domains WHERE domain = ?", (domain,))
         conn.commit()
@@ -391,7 +398,7 @@ def whitelist_add():
     if domain:
         import sqlite3
 
-        conn = sqlite3.connect(config.DATABASE_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
             "INSERT OR IGNORE INTO whitelisted_domains (domain) VALUES (?)",
@@ -409,7 +416,7 @@ def whitelist_remove():
     if domain:
         import sqlite3
 
-        conn = sqlite3.connect(config.DATABASE_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM whitelisted_domains WHERE domain = ?", (domain,))
         conn.commit()
@@ -428,7 +435,7 @@ def delete_page():
     import csv
     import os
 
-    conn = sqlite3.connect(config.DATABASE_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # Get page data before deleting
@@ -592,7 +599,7 @@ def manual_insert():
                     )
 
         # 4. Save to DB
-        conn = sqlite3.connect(config.DATABASE_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
 
         # We manually set quality_tier to 'manual' to distinguish.
