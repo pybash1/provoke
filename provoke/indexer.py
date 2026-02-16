@@ -11,13 +11,19 @@ class SearchEngine:
         if not os.path.exists(self.db_file):
             print(f"Warning: {self.db_file} not found. Search results will be empty.")
 
+    def _get_db_connection(self):
+        conn = sqlite3.connect(self.db_file)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        return conn
+
     def search(self, query):
         if not query:
             return []
 
         results = []
         try:
-            conn = sqlite3.connect(self.db_file)
+            conn = self._get_db_connection()
 
             # Register a similarity function for fuzzy matching
             def calculate_similarity(s1, s2):

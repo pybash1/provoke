@@ -1,4 +1,7 @@
+
 index.db
+index.db-wal
+index.db-shm
 models/
 data/
 __pycache__/
@@ -9,3 +12,4 @@ rejected_url*.log
 .DS_Store
 .pytest_cache/
 .claude/
+provoke/crawler.py
