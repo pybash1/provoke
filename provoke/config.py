@@ -1068,6 +1068,7 @@ def evaluate_page_quality(
         if is_homepage_not_article(url, html):
             return {
                 "is_acceptable": False,
+                "rejection_reasons": ["Root domain / landing page (not an article)"],
                 "quality_tier": "rejected",
             }
 
