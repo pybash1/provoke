@@ -116,6 +116,32 @@ class _BaseConfig:
     # ── Crawler ───────────────────────────────────────────────────────────
     CRAWLER_DEFAULT_MAX_DEPTH: int = 2
     CRAWLER_POLITE_DELAY: float = 0.1  # Delay between crawled URLs (seconds)
+    CRAWLER_CONCURRENCY: int = 50  # Number of concurrent crawler tasks
+
+    # ── Dynamic Content Detection ─────────────────────────────────────────
+    # Domains known to require JavaScript (SPAs, heavy dynamic content)
+    DYNAMIC_DOMAINS: set = {
+        "twitter.com",
+        "x.com",
+        "facebook.com",
+        "instagram.com",
+        "linkedin.com",
+        "youtube.com",
+        "tiktok.com",
+        "reddit.com",
+        "medium.com",  # Often heavily dynamic
+    }
+
+    # HTML patterns that suggest a Single Page Application (SPA) or JS dependency
+    DYNAMIC_INDICATORS: list = [
+        '<div id="__next">',  # Next.js
+        '<div id="root"></div>',  # React common
+        '<div id="app"></div>',  # Vue/Generic common
+        "data-reactroot",  # React
+        "ng-version=",  # Angular
+        '<script id="__NEXT_DATA__"',  # Next.js data
+        "window.__NUXT__",  # Nuxt.js
+    ]
 
     # ── Quality Thresholds ────────────────────────────────────────────────
     THRESHOLDS: dict = {

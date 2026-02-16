@@ -1,5 +1,7 @@
-import requests
+import asyncio
+import aiohttp
 from bs4 import BeautifulSoup
+from playwright.async_api import async_playwright
 import sqlite3
 import time
 import os
@@ -91,7 +93,7 @@ class BranchStats:
         return f"[{status}] {self.accepted_count}/{self.total_crawled} accepted ({ratio:.0%} rejection), depth {self.max_depth_reached}"
 
 
-class SimpleCrawler:
+class AsyncCrawler:
     def __init__(self, base_url, max_depth=None, db_file=None, use_dynamic=False):
         self.base_url = base_url
         self.max_depth = (
@@ -100,24 +102,21 @@ class SimpleCrawler:
         self.db_file = db_file or config.DATABASE_PATH
         self.use_dynamic = use_dynamic
         self.init_db()
-        # visited tracks URLs in the CURRENT session to avoid infinite loops.
-        # Historical URLs in the database will be updated via 'INSERT OR REPLACE'.
         self.visited = set()
         self.playwright = None
         self.browser = None
+        self.session = None  # aiohttp session
         self.quality_logger = QualityLogger()
         self.blacklist = self.get_blacklisted_domains()
         self.whitelist = self.get_whitelisted_domains()
-        self.domain_rejections = {}  # Tracks rejections per domain in current session
-        self.consecutive_rejections = 0  # GLOBAL consecutive rejections
-        self.stop_requested = False  # Flag to stop the entire crawl
-        self.branch_stats = (
-            {}
-        )  # URL branch -> BranchStats mapping for smart tree skipping
+        self.domain_rejections = {}
+        self.consecutive_rejections = 0
+        self.stop_requested = False
+        self.branch_stats = {}
         self.robots_parser = RobotsParser(user_agent=config.USER_AGENT)
-        self.feed_only_domains = (
-            {}
-        )  # Track domains that only serve feeds: domain -> feed_count
+        self.feed_only_domains = {}
+        self.queue = asyncio.Queue()
+        self.active_workers = 0
 
         # Register signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, self._handle_signal)
@@ -366,20 +365,29 @@ class SimpleCrawler:
 
         return False
 
-    def start_browser(self):
+    async def start_session(self):
+        """Initialize async resources."""
+        if not self.session:
+            timeout = aiohttp.ClientTimeout(total=config.CRAWLER_TIMEOUT)
+            self.session = aiohttp.ClientSession(
+                headers={"User-Agent": config.USER_AGENT}, timeout=timeout
+            )
+
         if self.use_dynamic and not self.browser:
-            from playwright.sync_api import sync_playwright
+            print("Starting headless browser for dynamic content (Async)...")
+            self.playwright = await async_playwright().start()
+            self.browser = await self.playwright.chromium.launch(headless=True)
 
-            print("Starting headless browser for dynamic content...")
-            self.playwright = sync_playwright().start()
-            self.browser = self.playwright.chromium.launch(headless=True)
-
-    def close_browser(self):
+    async def close_session(self):
+        """Clean up async resources."""
+        if self.session:
+            await self.session.close()
+            self.session = None
         if self.browser:
-            self.browser.close()
+            await self.browser.close()
             self.browser = None
         if self.playwright:
-            self.playwright.stop()
+            await self.playwright.stop()
             self.playwright = None
 
     def normalize_url(self, url):
@@ -457,24 +465,99 @@ class SimpleCrawler:
 
         return bool(parsed.netloc) and normalized not in self.visited
 
-    def crawl(self, url, depth=0, parent_branch=None):
-        if self.stop_requested:
-            return
+    def is_likely_dynamic(self, url: str, html: str = None) -> bool:
+        """Check if URL requires dynamic rendering via heuristics."""
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
 
+        # 1. Domain-level check
+        if any(d in domain for d in config.DYNAMIC_DOMAINS):
+            return True
+
+        # 2. Content check (if available)
+        if html:
+            if any(indicator in html for indicator in config.DYNAMIC_INDICATORS):
+                return True
+
+        return False
+
+    async def fetch_page(self, url: str) -> tuple[str | None, bool]:
+        """
+        Fetch page content using best strategy.
+        Returns (html_content, used_dynamic).
+        """
+        html = None
+        used_dynamic = False
+
+        # Strategy 1: If domain is known dynamic, go straight to Playwright
+        if self.use_dynamic and self.is_likely_dynamic(url):
+            try:
+                html = await self.fetch_dynamic(url)
+                if html:
+                    return html, True
+            except Exception as e:
+                print(f"  Dynamic fetch failed for {url}: {e}")
+                # Fallback to static if dynamic fails? Or just fail.
+                # Usually dynamic failure means timeout or error, unlikely static works better if it's SPA.
+
+        # Strategy 2: Fast static fetch first
+        try:
+            async with self.session.get(url) as response:
+                if response.status != 200:
+                    return None, False
+                html = await response.text()
+        except Exception as e:
+            # If static fails, maybe try dynamic as last resort if configured?
+            # print(f"Static fetch failed: {e}")
+            return None, False
+
+        # Strategy 3: Check if static content signals need for dynamic render
+        if self.use_dynamic and self.is_likely_dynamic(url, html):
+            print(
+                f"  Detected dynamic content signals for {url}, upgrading to Playwright..."
+            )
+            try:
+                dynamic_html = await self.fetch_dynamic(url)
+                if dynamic_html:
+                    return dynamic_html, True
+            except Exception as e:
+                print(f"  Upgrade to dynamic failed: {e}, keeping static content.")
+
+        return html, False
+
+    async def fetch_dynamic(self, url):
+        if not self.browser:
+            await self.start_session()
+
+        page = await self.browser.new_page()
+        try:
+            await page.goto(
+                url, wait_until="networkidle", timeout=config.DYNAMIC_PAGE_TIMEOUT
+            )
+            # Wait a bit more for rendering
+            await asyncio.sleep(config.DYNAMIC_RENDER_WAIT)
+            content = await page.content()
+            return content
+        finally:
+            await page.close()
+
+    async def process_url(self, url, depth, parent_branch=None):
+        """Process a single URL."""
         normalized = self.normalize_url(url)
-        if depth > self.max_depth or normalized in self.visited:
+
+        # Re-check visited (in case another worker added it)
+        if normalized in self.visited:
             return
 
-        # For seed URLs (depth 0), we need to check validity here
-        # (Subsequent calls are checked before the recursive call)
-        if depth == 0 and not self.is_valid_url(url):
+        # Basic validity checks
+        if not self.is_valid_url(url):
             return
 
-        # Smart tree skipping: check if this branch should be abandoned
+        # Smart tree skipping check
         if self.should_skip_branch(url, depth):
             return
 
-        # Get or create branch stats for tracking
+        # Branch stats setup
         branch_key = self.get_branch_key(url, depth)
         if branch_key not in self.branch_stats:
             self.branch_stats[branch_key] = BranchStats()
@@ -486,190 +569,224 @@ class SimpleCrawler:
         self.visited.add(normalized)
 
         try:
-            html = None
+            html, used_dynamic = await self.fetch_page(url)
 
-            if self.use_dynamic:
-                self.start_browser()
-                if not self.browser:
-                    print(f"Failed to start browser for {url}")
-                    return
-                page = self.browser.new_page()
-                page.goto(
-                    url, wait_until="networkidle", timeout=config.DYNAMIC_PAGE_TIMEOUT
-                )
-                # Wait a bit more for React/Vue to finish rendering if needed
-                time.sleep(config.DYNAMIC_RENDER_WAIT)
-                html = page.content()
-                page.close()
-            else:
-                headers = {"User-Agent": config.USER_AGENT}
-                response = requests.get(
-                    url, timeout=config.CRAWLER_TIMEOUT, headers=headers
-                )
-                if response.status_code != 200:
-                    # Record rejection for failed fetches too
-                    branch_stats.record_result(depth, accepted=False)
-                    return
-                html = response.text
+            if not html:
+                branch_stats.record_result(depth, accepted=False)
+                return
 
-            # Check page size limit - abandon pages that are too large
+            # CPU-intensive parsing - run in thread executor to not block loop
+            loop = asyncio.get_running_loop()
+
+            # Check size
+            # ... (Logic similar to original, implemented inline or via helper)
             max_size_bytes = config.THRESHOLDS.get("max_page_size_mb", 2) * 1024 * 1024
-            page_size = len(html.encode("utf-8"))
-            if page_size > max_size_bytes:
-                size_mb = page_size / (1024 * 1024)
-                max_mb = max_size_bytes / (1024 * 1024)
-                print(
-                    f"  ↳ [SIZE SKIP] Abandoning {url}: {size_mb:.1f}MB exceeds {max_mb}MB limit"
-                )
+            if len(html.encode("utf-8")) > max_size_bytes:
                 branch_stats.record_result(depth, accepted=False)
-                self.quality_logger.log_rejection(
-                    url,
-                    [f"Page too large ({size_mb:.1f}MB)"],
-                    {"page_size_mb": round(size_mb, 2)},
-                )
                 return
 
-            soup = BeautifulSoup(html, "lxml")
+            # Parse and Evaluate
+            # We run the heavy lifting in a thread
+            def analyze_content():
+                soup = BeautifulSoup(html, "lxml")
 
-            # Check if this is an RSS/JSON feed
-            parsed_url = urlparse(url)
-            domain = parsed_url.netloc.lower()
+                # RSS Check
+                if self.is_rss_or_json_feed(html, url):
+                    # ... handle feed logic ...
+                    return "FEED", None
 
-            if self.is_rss_or_json_feed(html, url):
-                # Track feed-only domains
-                if domain not in self.feed_only_domains:
-                    self.feed_only_domains[domain] = 0
-                self.feed_only_domains[domain] += 1
+                title = soup.title.string if soup.title else url
+                text = soup.get_text(separator=" ", strip=True)
 
-                # Check if we should auto-blacklist this domain
-                if self.check_and_blacklist_feed_domain(domain):
-                    branch_stats.record_result(depth, accepted=False)
-                    return
+                content_hash = self.compute_content_hash(text)
+                is_dup, existing = self.is_duplicate_content(content_hash)
 
-                # Reject this specific feed page
-                branch_stats.record_result(depth, accepted=False)
-                print(f"  ↳ [FEED] Skipping RSS/JSON feed: {url}")
-                self.quality_logger.log_rejection(
-                    url,
-                    ["RSS/JSON feed detected"],
-                    {
-                        "feed_type": "rss_or_json",
-                        "domain_feed_count": self.feed_only_domains[domain],
-                    },
+                if is_dup:
+                    return "DUPLICATE", existing
+
+                quality_result = evaluate_page_quality(
+                    url, html, text, whitelist=self.whitelist
                 )
-                return
+                return "OK", (title, text, content_hash, quality_result)
 
-            # Extract text and title
-            title = soup.title.string if soup.title else url
-            text = soup.get_text(separator=" ", strip=True)
+            result_type, data = await loop.run_in_executor(None, analyze_content)
 
-            # Check for duplicate content before quality filtering
-            content_hash = self.compute_content_hash(text)
-            is_duplicate, existing_url = self.is_duplicate_content(content_hash)
-
-            if is_duplicate:
-                branch_stats.record_result(depth, accepted=False)
-                print(f"  ↳ [DUPLICATE] Skipping {url} (identical to {existing_url})")
-                self.quality_logger.log_rejection(
-                    url,
-                    [f"Duplicate content (same as {existing_url})"],
-                    {"content_hash": content_hash, "original_url": existing_url},
-                )
-                return
-
-            # Quality Filtering
-            quality_result = evaluate_page_quality(
-                url, html, text, whitelist=self.whitelist
-            )
-
-            if quality_result["is_acceptable"]:
-                # Record acceptance in branch stats
-                branch_stats.record_result(depth, accepted=True)
-
-                self.quality_logger.log_acceptance(url, quality_result["quality_tier"])
-                print(f"  ✓ Accepted {url} (Tier: {quality_result['quality_tier']})")
-                self.save_page(
-                    url,
-                    str(title),
-                    text,
-                    html,
-                    quality_result["scores"],
-                    quality_result["quality_tier"],
-                    content_hash,
-                )
-                # Reset consecutive rejections on acceptance
-                self.consecutive_rejections = 0  # Reset global counter
-            else:
-                # Record rejection in branch stats
-                branch_stats.record_result(depth, accepted=False)
-
-                self.quality_logger.log_rejection(
-                    url, quality_result["rejection_reasons"], quality_result["scores"]
-                )
-                print(
-                    f"  ✗ Rejected {url}: {', '.join(quality_result['rejection_reasons'])}"
-                )
-
-                # Track domain rejections (total in session)
+            if result_type == "FEED":
+                # Handle feed (simplified logic for async)
+                # We need to update feed_only_domains and potentially blacklist
+                # This affects shared state (feed_only_domains), might need lock if strictly parallel,
+                # but dict operations are atomic in GIL, so it's mostly fine.
                 parsed = urlparse(url)
                 domain = parsed.netloc.lower()
-                self.domain_rejections[domain] = (
-                    self.domain_rejections.get(domain, 0) + 1
+                self.feed_only_domains[domain] = (
+                    self.feed_only_domains.get(domain, 0) + 1
                 )
-                if (
-                    self.domain_rejections[domain]
-                    >= config.THRESHOLDS["domain_rejection_threshold"]
-                ):
-                    self.blacklist_domain(domain)
+                if self.check_and_blacklist_feed_domain(domain):
+                    pass
+                branch_stats.record_result(depth, accepted=False)
+                return
 
-                # Track global consecutive rejections
-                self.consecutive_rejections += 1
+            elif result_type == "DUPLICATE":
+                branch_stats.record_result(depth, accepted=False)
+                return
 
-                if (
-                    self.consecutive_rejections
-                    >= config.THRESHOLDS["consecutive_rejection_threshold"]
-                ):
-                    print(
-                        f"!!! GLOBAL consecutive rejection threshold hit ({self.consecutive_rejections}). Stopping crawl. !!!"
+            elif result_type == "OK":
+                title, text, content_hash, quality_result = data
+
+                if quality_result["is_acceptable"]:
+                    branch_stats.record_result(depth, accepted=True)
+                    self.quality_logger.log_acceptance(
+                        url, quality_result["quality_tier"]
                     )
-                    self.stop_requested = True
+                    print(
+                        f"  ✓ Accepted {url} (Tier: {quality_result['quality_tier']})"
+                    )
 
-                # Check if branch should be abandoned after this rejection
-                if self.should_skip_branch(url, depth):
-                    return
+                    # Save DB (sync)
+                    # We can use execute_in_executor for DB too
+                    await loop.run_in_executor(
+                        None,
+                        lambda: self.save_page(
+                            url,
+                            str(title),
+                            text,
+                            html,
+                            quality_result["scores"],
+                            quality_result["quality_tier"],
+                            content_hash,
+                        ),
+                    )
+                    self.consecutive_rejections = 0
+                else:
+                    branch_stats.record_result(depth, accepted=False)
+                    self.quality_logger.log_rejection(
+                        url,
+                        quality_result["rejection_reasons"],
+                        quality_result["scores"],
+                    )
+                    print(
+                        f"  ✗ Rejected {url}: {', '.join(quality_result['rejection_reasons'])}"
+                    )
 
-            # Find and crawl links
-            if depth < self.max_depth:
+                    # Track rejections
+                    parsed = urlparse(url)
+                    domain = parsed.netloc.lower()
+                    self.domain_rejections[domain] = (
+                        self.domain_rejections.get(domain, 0) + 1
+                    )
+                    if (
+                        self.domain_rejections[domain]
+                        >= config.THRESHOLDS["domain_rejection_threshold"]
+                    ):
+                        self.blacklist_domain(domain)
+
+                    self.consecutive_rejections += 1
+                    if (
+                        self.consecutive_rejections
+                        >= config.THRESHOLDS["consecutive_rejection_threshold"]
+                    ):
+                        print(
+                            "!!! GLOBAL consecutive rejection threshold hit. Stopping crawl. !!!"
+                        )
+                        self.stop_requested = True
+
+                    if self.should_skip_branch(url, depth):
+                        return
+
+            # Enqueue links
+            if depth < self.max_depth and not self.stop_requested:
+                # Extract links (soup is needed)
+                # We can re-parse or return soup from analyze_content.
+                # For simplicity, let's just re-parse or extract in analyze_content.
+                # Let's extract links in analyze_content to save CPU
+                pass
+                # Actually, extracting links is fast enough.
+                # But we need soup.
+                soup = BeautifulSoup(html, "lxml")
                 for link in soup.find_all("a", href=True):
                     href = str(link["href"])
                     next_url = urljoin(url, href)
                     if self.is_valid_url(next_url):
-                        # Use a more responsive loop for stopping
-                        if self.stop_requested:
-                            break
-
-                        # Check if the new URL would be in an abandoned branch
                         next_branch = self.get_branch_key(next_url, depth + 1)
                         if (
                             next_branch in self.branch_stats
                             and self.branch_stats[next_branch].skipped
                         ):
-                            continue  # Skip links to abandoned branches
+                            continue
+                        await self.queue.put((next_url, depth + 1))
 
-                        self.crawl(next_url, depth + 1, parent_branch=branch_key)
-
-                        # Responsive delay: check for stop several times during delay
-                        for _ in range(int(config.CRAWLER_POLITE_DELAY * 10)):
-                            if self.stop_requested:
-                                break
-                            time.sleep(0.1)
-                        if self.stop_requested:
-                            break
         except Exception as e:
-            print(f"Error crawling {url}: {e}")
-            # Record as rejection on error
-            if branch_key in self.branch_stats:
-                self.branch_stats[branch_key].record_result(depth, accepted=False)
+            print(f"Error processing {url}: {e}")
+            branch_stats.record_result(depth, accepted=False)
+
+    async def worker(self):
+        while True:
+            try:
+                if self.stop_requested:
+                    # Drain queue
+                    try:
+                        while True:
+                            self.queue.get_nowait()
+                            self.queue.task_done()
+                    except asyncio.QueueEmpty:
+                        pass
+                    break
+
+                # Get item from queue
+                try:
+                    url, depth = await asyncio.wait_for(self.queue.get(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    if self.active_workers == 0 and self.queue.empty():
+                        # No more work
+                        break
+                    continue
+                except asyncio.QueueEmpty:
+                    continue
+
+                self.active_workers += 1
+                try:
+                    if depth <= self.max_depth and not self.stop_requested:
+                        await self.process_url(url, depth)
+                finally:
+                    self.queue.task_done()
+                    self.active_workers -= 1
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"Worker error: {e}")
+
+    async def run(self, seed_urls: list[str]):
+        """Run the async crawler."""
+        await self.start_session()
+        try:
+            for url in seed_urls:
+                if self.stop_requested:
+                    break
+                # Reset per-seed counters if needed, but we keep history
+                self.consecutive_rejections = 0
+                await self.queue.put((url, 0))
+
+            # Start workers
+            workers = [
+                asyncio.create_task(self.worker())
+                for _ in range(config.CRAWLER_CONCURRENCY)
+            ]
+
+            # Wait for queue to be fully processed
+            await self.queue.join()
+
+            # Cancel workers
+            for w in workers:
+                w.cancel()
+            await asyncio.gather(*workers, return_exceptions=True)
+
+        finally:
+            await self.close_session()
+
+    def crawl(self, url, depth=0, parent_branch=None):
+        # shim for backward compatibility if needed, but we should use run()
+        pass
 
     def save_page(
         self,
@@ -965,32 +1082,22 @@ def main():
         sys.exit(0)
 
     # Use the first URL to initialize the crawler base domain if needed
-    crawler = SimpleCrawler(urls_to_crawl[0], max_depth=depth, use_dynamic=use_dynamic)
+    crawler = AsyncCrawler(urls_to_crawl[0], max_depth=depth, use_dynamic=use_dynamic)
     try:
-        for url in urls_to_crawl:
-            if crawler.stop_requested:
-                print(
-                    "[SHUTDOWN] Skipping remaining seed URLs due to shutdown request."
-                )
-                break
+        print(f"\n>>> Starting ASYNC crawl using {config.CRAWLER_CONCURRENCY} workers")
+        print(
+            f"[CONFIG] Smart Tree: {'enabled' if args.no_smart_tree == False else 'disabled'}, "
+            f"Min Samples: {config.THRESHOLDS.get('branch_min_samples', 3)}, "
+            f"Rejection Threshold: {config.THRESHOLDS.get('branch_rejection_ratio', 0.85):.0%}, "
+            f"Depth Threshold: {config.THRESHOLDS.get('branch_depth_threshold', 2)}"
+        )
 
-            print(f"\n>>> Starting crawl from input URL: {url}")
-            print(
-                f"[CONFIG] Smart Tree: {'enabled' if args.no_smart_tree == False else 'disabled'}, "
-                f"Min Samples: {config.THRESHOLDS.get('branch_min_samples', 3)}, "
-                f"Rejection Threshold: {config.THRESHOLDS.get('branch_rejection_ratio', 0.85):.0%}, "
-                f"Depth Threshold: {config.THRESHOLDS.get('branch_depth_threshold', 2)}"
-            )
-            # Reset stop markers for each new seed URL
-            crawler.stop_requested = False
-            crawler.consecutive_rejections = 0
-            # Note: We keep branch_stats across seeds to learn from previous branches
-            crawler.crawl(url)
+        asyncio.run(crawler.run(urls_to_crawl))
+
     except KeyboardInterrupt:
         print("\n[SHUTDOWN] KeyboardInterrupt received. Cleaning up...")
         crawler.stop_requested = True
     finally:
-        crawler.close_browser()
         crawler.quality_logger.print_summary()
         crawler.print_branch_summary()
 

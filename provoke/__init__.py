@@ -3,7 +3,8 @@ Provoke: A specialized web crawler and search engine for high-quality personal b
 """
 
 from provoke.config import config, evaluate_page_quality
-from provoke.crawler import SimpleCrawler
+from provoke.config import config, evaluate_page_quality
+from provoke.crawler import AsyncCrawler
 from provoke.indexer import SearchEngine
 
-__all__ = ["config", "evaluate_page_quality", "SimpleCrawler", "SearchEngine"]
+__all__ = ["config", "evaluate_page_quality", "AsyncCrawler", "SearchEngine"]
