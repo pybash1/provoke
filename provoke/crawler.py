@@ -326,8 +326,6 @@ class AsyncCrawler:
         # JSON feed detection
         if sample.startswith("{") or sample.startswith("["):
             try:
-                import json
-
                 data = json.loads(html[:5000])  # Parse first 5KB
                 # Check for common JSON feed structures
                 if isinstance(data, dict):
@@ -476,7 +474,26 @@ class AsyncCrawler:
 
         # 2. Content check (if available)
         if html:
+            # Check for known SPA indicators
             if any(indicator in html for indicator in config.DYNAMIC_INDICATORS):
+                return True
+
+            # Threshold-based detection from auto-switch feature
+            thresholds = config.THRESHOLDS
+            html_lower = html.lower()
+
+            # Logic 1: Size-based. If static content is unusually small, it's likely an SPA shell.
+            if len(html) < thresholds.get("min_static_content_bytes", 1000):
+                return True
+
+            # Logic 2: Script-density. High script count often indicates a complex app.
+            if html_lower.count("<script") > thresholds.get(
+                "max_static_script_tags", 20
+            ):
+                return True
+
+            # Logic 3: Explicit <noscript> tag is a strong indicator of JS requirement.
+            if "<noscript" in html_lower:
                 return True
 
         return False
@@ -502,10 +519,16 @@ class AsyncCrawler:
 
         # Strategy 2: Fast static fetch first
         try:
-            async with self.session.get(url) as response:
-                if response.status != 200:
-                    return None, False
-                html = await response.text()
+            if not self.session:
+                await self.start_session()
+
+            if self.session:
+                async with self.session.get(url) as response:
+                    if response.status != 200:
+                        return None, False
+                    html = await response.text()
+            else:
+                return None, False
         except Exception as e:
             # If static fails, maybe try dynamic as last resort if configured?
             # print(f"Static fetch failed: {e}")
@@ -528,6 +551,9 @@ class AsyncCrawler:
     async def fetch_dynamic(self, url):
         if not self.browser:
             await self.start_session()
+
+        if not self.browser:
+            return None
 
         page = await self.browser.new_page()
         try:
@@ -577,9 +603,6 @@ class AsyncCrawler:
 
             # CPU-intensive parsing - run in thread executor to not block loop
             loop = asyncio.get_running_loop()
-
-            # Check size
-            # ... (Logic similar to original, implemented inline or via helper)
             max_size_bytes = config.THRESHOLDS.get("max_page_size_mb", 2) * 1024 * 1024
             if len(html.encode("utf-8")) > max_size_bytes:
                 branch_stats.record_result(depth, accepted=False)
@@ -630,16 +653,16 @@ class AsyncCrawler:
                 branch_stats.record_result(depth, accepted=False)
                 return
 
-            elif result_type == "OK":
+            elif result_type == "OK" and isinstance(data, tuple):
                 title, text, content_hash, quality_result = data
 
-                if quality_result["is_acceptable"]:
+                if quality_result.get("is_acceptable"):
                     branch_stats.record_result(depth, accepted=True)
                     self.quality_logger.log_acceptance(
-                        url, quality_result["quality_tier"]
+                        url, quality_result.get("quality_tier", "unknown")
                     )
                     print(
-                        f"  ✓ Accepted {url} (Tier: {quality_result['quality_tier']})"
+                        f"  ✓ Accepted {url} (Tier: {quality_result.get('quality_tier', 'unknown')})"
                     )
 
                     # Save DB (sync)
@@ -651,8 +674,8 @@ class AsyncCrawler:
                             str(title),
                             text,
                             html,
-                            quality_result["scores"],
-                            quality_result["quality_tier"],
+                            quality_result.get("scores"),
+                            quality_result.get("quality_tier"),
                             content_hash,
                         ),
                     )
@@ -661,12 +684,13 @@ class AsyncCrawler:
                     branch_stats.record_result(depth, accepted=False)
                     self.quality_logger.log_rejection(
                         url,
-                        quality_result["rejection_reasons"],
-                        quality_result["scores"],
+                        quality_result.get("rejection_reasons", []),
+                        quality_result.get("scores", {}),
                     )
-                    print(
-                        f"  ✗ Rejected {url}: {', '.join(quality_result['rejection_reasons'])}"
+                    reasons = quality_result.get(
+                        "rejection_reasons", ["Low quality score"]
                     )
+                    print(f"  ✗ Rejected {url}: {', '.join(reasons)}")
 
                     # Track rejections
                     parsed = urlparse(url)

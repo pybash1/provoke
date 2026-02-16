@@ -167,6 +167,10 @@ class _BaseConfig:
         "max_page_size_mb": 2,  # Maximum page size in MB (2MB = ~2 million characters)
         # RSS/JSON feed auto-blacklisting
         "feed_only_domain_threshold": 5,  # Number of feeds before auto-blacklisting domain
+        # Dynamic Content Detection Strategy
+        "min_static_content_bytes": 1000,  # If static fetch < this bytes, retry with Playwright
+        "max_static_script_tags": 20,  # If > this many scripts, assume JS-heavy and retry
+        "min_noscript_tags": 1,  # If any <noscript> tags found, retry with Playwright
     }
 
     # ── ML Settings ───────────────────────────────────────────────────────
@@ -1064,6 +1068,7 @@ def evaluate_page_quality(
         if is_homepage_not_article(url, html):
             return {
                 "is_acceptable": False,
+                "rejection_reasons": ["Root domain / landing page (not an article)"],
                 "quality_tier": "rejected",
             }
 
