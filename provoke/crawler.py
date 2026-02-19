@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 import signal
 import hashlib
 from provoke.utils.robots import RobotsParser
+from provoke.utils.bloom import RedisBloomFilter
 
 
 @dataclass
@@ -102,7 +103,7 @@ class AsyncCrawler:
         self.db_file = db_file or config.DATABASE_PATH
         self.use_dynamic = use_dynamic
         self.init_db()
-        self.visited = set()
+        self.visited = RedisBloomFilter()
         self.playwright = None
         self.browser = None
         self.session = None  # aiohttp session
@@ -463,7 +464,7 @@ class AsyncCrawler:
 
         return bool(parsed.netloc) and normalized not in self.visited
 
-    def is_likely_dynamic(self, url: str, html: str = None) -> bool:
+    def is_likely_dynamic(self, url: str, html: str | None = None) -> bool:
         """Check if URL requires dynamic rendering via heuristics."""
         parsed = urlparse(url)
         domain = parsed.netloc.lower()
@@ -475,7 +476,9 @@ class AsyncCrawler:
         # 2. Content check (if available)
         if html:
             # Check for known SPA indicators
-            if any(indicator in html for indicator in config.DYNAMIC_INDICATORS):
+            if any(
+                indicator in (html or "") for indicator in config.DYNAMIC_INDICATORS
+            ):
                 return True
 
             # Threshold-based detection from auto-switch feature
