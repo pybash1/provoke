@@ -15,6 +15,7 @@ from datetime import datetime
 from dataclasses import dataclass, field
 import signal
 import hashlib
+import redis.asyncio as aredis
 from provoke.utils.robots import RobotsParser
 
 
@@ -117,6 +118,7 @@ class AsyncCrawler:
         self.feed_only_domains = {}
         self.queue = asyncio.Queue()
         self.active_workers = 0
+        self.redis = None
 
         # Register signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, self._handle_signal)
@@ -376,6 +378,11 @@ class AsyncCrawler:
             self.playwright = await async_playwright().start()
             self.browser = await self.playwright.chromium.launch(headless=True)
 
+        if not self.redis:
+            self.redis = aredis.Redis(
+                host=config.REDIS_HOST, port=config.REDIS_PORT, decode_responses=True
+            )
+
     async def close_session(self):
         """Clean up async resources."""
         if self.session:
@@ -384,6 +391,9 @@ class AsyncCrawler:
         if self.browser:
             await self.browser.close()
             self.browser = None
+        if self.redis:
+            await self.redis.close()
+            self.redis = None
         if self.playwright:
             await self.playwright.stop()
             self.playwright = None
@@ -463,7 +473,7 @@ class AsyncCrawler:
 
         return bool(parsed.netloc) and normalized not in self.visited
 
-    def is_likely_dynamic(self, url: str, html: str = None) -> bool:
+    def is_likely_dynamic(self, url: str, html: str | None = None) -> bool:
         """Check if URL requires dynamic rendering via heuristics."""
         parsed = urlparse(url)
         domain = parsed.netloc.lower()
@@ -665,19 +675,18 @@ class AsyncCrawler:
                         f"  ✓ Accepted {url} (Tier: {quality_result.get('quality_tier', 'unknown')})"
                     )
 
-                    # Save DB (sync)
-                    # We can use execute_in_executor for DB too
-                    await loop.run_in_executor(
-                        None,
-                        lambda: self.save_page(
-                            url,
-                            str(title),
-                            text,
-                            html,
-                            quality_result.get("scores"),
-                            quality_result.get("quality_tier"),
-                            content_hash,
-                        ),
+                    # Enqueue for indexing via Redis Stream (Decoupled)
+                    await self.enqueue_indexing_task(
+                        {
+                            "url": url,
+                            "title": str(title),
+                            "content": text,
+                            "html": html,
+                            "quality_score": json.dumps(quality_result.get("scores")),
+                            "quality_tier": quality_result.get("quality_tier"),
+                            "content_hash": content_hash,
+                            "timestamp": datetime.now().isoformat(),
+                        }
                     )
                     self.consecutive_rejections = 0
                 else:
@@ -812,54 +821,20 @@ class AsyncCrawler:
         # shim for backward compatibility if needed, but we should use run()
         pass
 
-    def save_page(
-        self,
-        url,
-        title,
-        content,
-        html,
-        quality_score=None,
-        quality_tier=None,
-        content_hash=None,
-    ):
-        try:
-            conn = self._get_db_connection()
-            cursor = conn.cursor()
+    async def enqueue_indexing_task(self, data: dict):
+        """Push crawl results to Redis Stream for the indexer worker."""
+        if not self.redis:
+            await self.start_session()
 
-            # Extract unified_score from quality_score dict
-            unified_score = None
-            if isinstance(quality_score, dict):
-                unified_score = quality_score.get("unified_score")
-                quality_score_json = json.dumps(quality_score)
-            elif isinstance(quality_score, (int, float)):
-                unified_score = int(quality_score)
-                quality_score_json = str(quality_score)
-            else:
-                quality_score_json = quality_score
-
-            cursor.execute(
-                """INSERT OR REPLACE INTO pages
-                    (url, title, content, html, quality_score, quality_tier, unified_score, content_hash)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    url,
-                    title,
-                    content,
-                    html,
-                    quality_score_json,
-                    quality_tier,
-                    unified_score,
-                    content_hash,
-                ),
-            )
-            conn.commit()
-            conn.close()
-
-            # Also extract and save RSS feeds from this page
-            self.extract_and_save_rss_feeds(url, html)
-
-        except sqlite3.Error as e:
-            print(f"Error saving to database: {e}")
+        if self.redis:
+            try:
+                # XADD inked:crawl_results * url ... title ...
+                # Redis Stream entries are key-value pairs
+                await self.redis.xadd(config.REDIS_STREAM, data)
+            except Exception as e:
+                print(f"  Error enqueuing indexing task: {e}")
+        else:
+            print("  Error: Redis not initialized.")
 
     def print_branch_summary(self):
         """Print summary of all branches and their outcomes."""
@@ -927,98 +902,6 @@ class AsyncCrawler:
                 conn.close()
             except sqlite3.Error as e:
                 print(f"Error blacklisting domain: {e}")
-
-    def extract_and_save_rss_feeds(self, url, html):
-        """Extract RSS feeds from HTML and save them to the rss_feeds table."""
-        if not html:
-            return
-
-        try:
-            from datetime import datetime
-
-            soup = BeautifulSoup(html, "lxml")
-            domain = urlparse(url).netloc
-            feeds_to_add = []
-
-            # Look for RSS/Atom feed links
-            for link in soup.find_all("link", rel="alternate"):
-                # Ensure we have a string for type and href
-                link_type = link.get("type", "")
-                if isinstance(link_type, list):
-                    link_type = " ".join(link_type)
-                link_type = (link_type or "").lower()
-
-                href = link.get("href", "")
-                if isinstance(href, list):
-                    href = href[0]
-
-                if not href:
-                    continue
-
-                full_url = urljoin(url, href)
-
-                # Only include if type is application/rss+xml or URL ends with .xml
-                is_rss_type = link_type == "application/rss+xml"
-                ends_with_xml = full_url.lower().endswith(".xml")
-
-                if is_rss_type or ends_with_xml:
-                    feeds_to_add.append(
-                        {
-                            "url": full_url,
-                            "title": link.get("title", ""),
-                            "type": link.get("type", "unknown"),
-                            "domain": domain,
-                        }
-                    )
-
-            if feeds_to_add:
-                conn = self._get_db_connection()
-                cursor = conn.cursor()
-
-                # Ensure rss_feeds table exists
-                cursor.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS rss_feeds (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        url TEXT UNIQUE NOT NULL,
-                        discovered_from TEXT,
-                        title TEXT,
-                        feed_type TEXT,
-                        source_domain TEXT,
-                        date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        last_checked TIMESTAMP,
-                        entry_count INTEGER,
-                        is_active BOOLEAN DEFAULT 1,
-                        error_count INTEGER DEFAULT 0
-                    )
-                    """
-                )
-
-                for feed in feeds_to_add:
-                    try:
-                        cursor.execute(
-                            """
-                            INSERT OR IGNORE INTO rss_feeds
-                            (url, discovered_from, title, feed_type, source_domain, date_added)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                            """,
-                            (
-                                feed["url"],
-                                url,
-                                feed["title"],
-                                feed["type"],
-                                feed["domain"],
-                                datetime.now().isoformat(),
-                            ),
-                        )
-                    except sqlite3.Error:
-                        pass
-
-                conn.commit()
-                conn.close()
-
-        except Exception:
-            pass
 
 
 def main():

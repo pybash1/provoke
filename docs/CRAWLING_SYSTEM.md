@@ -2,71 +2,73 @@
 
 ## Summary
 
-The core crawling engine that traverses the web, extracts content, and saves high-quality pages to the search index. The system includes built-in protections against low-quality domains and infinite crawling loops.
+The core crawling engine that traverses the web, extracts content, and enqueues high-quality pages for indexing. The system is designed for high concurrency and uses a message queue to decouple network-bound crawling from database-bound indexing.
 
 ## Description
 
-`crawler.py` implements the `SimpleCrawler` class, which handles the recursive traversal of URLs. It uses `requests` for static content and can optionally use Playwright for dynamic JavaScript-rendered pages. Every page found is evaluated for quality using `config.evaluate_page_quality` before being saved to the SQLite database (`index.db`).
+The system implements the `AsyncCrawler` class, which handles asynchronous recursive traversal of URLs using `aiohttp` and `asyncio`.
+
+### Decoupled Architecture
+
+The crawling process is now decoupled into two main components:
+
+1. **Crawler (`AsyncCrawler`)**: Responsible for fetching pages, evaluating their quality, and extracting links. If a page passes the quality threshold, it is pushed to a **Redis Stream** (`inked:crawl_results`).
+2. **Indexer Worker (`IndexerWorker`)**: A dedicated background worker that consumes segments from the Redis Stream and performs the actual database persistence (SQLite). This prevents database lock contention from slowing down the high-speed crawler.
 
 ### Key Features
 
-- **Traversal**: Breadth-first or depth-first search up to a specified `max_depth`.
-- **Normalization**: URLs are normalized (stripping params/fragments) to avoid duplicate crawling.
-- **Persistence**: Pages are saved to a SQL table with full-text search (FTS5) triggers.
-- **Dynamic Content**: Integration with Playwright via the `--dynamic` flag.
-- **Safety**: Uses `QualityLogger` to track successes and rejections, and enforces "polite" crawling with delays.
-- **Auto-Stopping**:
-  - **Domain Blacklisting**: Automatically blacklists a domain if it produces too many rejected pages (`domain_rejection_threshold`).
-  - **Global Rejection Stop**: Stops the entire crawl if a contiguous sequence of pages are rejected across the board (`consecutive_rejection_threshold`), preventing the crawler from getting stuck in a "bad neighborhood" of the web.
+- **Asynchronous Traversal**: Utilizes `asyncio` and `aiohttp` for high-concurrency crawling.
+- **Smart Tree Skipping**: Automatically abandons unproductive URL branches (subdirectories) if they consistently yield low-quality content.
+- **Deduplication**: Uses first-512-byte SHA256 content hashing to avoid indexing duplicate content across different URLs.
+- **Dynamic Content**: Auto-upgrades to Playwright (headless browser) if a page is detected as an SPA or requires JavaScript rendering.
+- **Message Queueing**: Uses Redis Streams to reliably pass crawl results to the indexer.
+- **Auto-Stopping**: Enforces global and per-domain rejection thresholds to prevent "bottom-less" crawls of low-quality networks.
 
 ## Public API / Interfaces
 
-### `SimpleCrawler` Class
+### `AsyncCrawler` Class
 
 #### Methods:
 
-- **`__init__(base_url, max_depth=2, db_file="index.db", use_dynamic=False)`**: Initialize the crawler.
-- **`crawl(url, depth=0)`**: Recursively crawl the given URL.
-- **`is_valid_url(url)`**: Checks if a URL should be crawled based on domain, extension, and visited status. Includes checks against the blacklist.
-- **`save_page(url, title, content, html, quality_score, quality_tier)`**: Persists page data to the DB and updates the FTS index.
-- **`blacklist_domain(domain)`**: Adds a domain to the blacklist in the database.
+- **`__init__(base_url, max_depth, use_dynamic=False)`**: Initialize the async crawler.
+- **`run(seed_urls)`**: Start the asynchronous crawl process.
+- **`enqueue_indexing_task(data)`**: Pushes accepted page metadata to Redis for the worker.
+
+### `IndexerWorker` Class (`provoke/indexer_worker.py`)
+
+#### Methods:
+
+- **`run()`**: Listens to the Redis Stream and processes incoming indexing tasks.
+- **`save_page(...)`**: Handles SQLite persistence and RSS feed extraction.
 
 ### CLI Commands:
 
 ```bash
-uv run python scripts/crawler.py <url_or_file> [max_depth] [--dynamic]
-# or
+# Start the Crawler
 uv run provoke-crawler <url_or_file> [max_depth] [--dynamic]
+
+# Start the Indexer Worker
+uv run provoke-indexer-worker
 ```
 
-- **`<url_or_file>`**: A single URL or a path to a text file containing seed URLs.
-- **`[max_depth]`**: Integer depth limit (default 1).
-- **`--dynamic`**: Enable Playwright for JS execution (crawls SPA sites).
+## Infrastructure
+
+The decoupled system requires **Redis** to be running. A `docker-compose.yml` is provided to easily spin up the required Redis instance:
+
+```bash
+docker-compose up -d redis
+```
 
 ## Dependencies
 
-- `requests`: HTTP client.
+- `aiohttp`: Async HTTP client.
+- `redis`: Async Redis client.
 - `BeautifulSoup`: HTML parsing.
-- `sqlite3`: Data storage.
-- `playwright`: (Optional) Dynamic rendering.
-- `provoke.config`: Central configuration and quality evaluation logic.
-- `provoke.utils.logger`: Stats tracking.
-
-## Examples
-
-Crawl a specific blog:
-
-```bash
-uv run python scripts/crawler.py https://example.com/blog 2
-```
-
-Crawl from a list of seeds with dynamic rendering:
-
-```bash
-uv run python scripts/crawler.py seeds.txt 1 --dynamic
-```
+- `sqlite3`: Data storage (via Indexer Worker).
+- `playwright`: Dynamic rendering.
 
 ## Related
 
 - [CONFIG.md](CONFIG.md)
-- [SEARCH_ENGINE.md](SEARCH_ENGINE.md)
+- [DATA_STORAGE.md](DATA_STORAGE.md)
+- [ML_CLASSIFICATION.md](ML_CLASSIFICATION.md)
