@@ -393,7 +393,7 @@ class AsyncCrawler:
             await self.browser.close()
             self.browser = None
         if self.redis:
-            await self.redis.close()
+            await self.redis.aclose()
             self.redis = None
         if self.playwright:
             await self.playwright.stop()

@@ -66,7 +66,7 @@ class IndexerWorker:
                 await asyncio.sleep(1)
 
         if self.redis:
-            await self.redis.close()
+            await self.redis.aclose()
         print("Indexer Worker stopped.")
 
     async def process_task(self, msg_id, data):
