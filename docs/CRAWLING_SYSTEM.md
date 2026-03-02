@@ -10,26 +10,26 @@ The core crawling engine that traverses the web, extracts content, and saves hig
 
 ### Key Features
 
-- **Traversal**: Breadth-first or depth-first search up to a specified `max_depth`.
+- **Asynchronous Crawling**: Utilizes `asyncio`, `aiohttp`, and asynchronous Playwright for high-concurrency crawling.
+- **Smart Tree Skipping**: Automatically abandons unproductive URL branches based on real-time rejection ratios.
+- **Distributed Bloom Filter**: Uses a persistent Redis-backed Bloom Filter to track visited URLs across sessions and multiple crawler instances.
 - **Normalization**: URLs are normalized (stripping params/fragments) to avoid duplicate crawling.
-- **Persistence**: Pages are saved to a SQL table with full-text search (FTS5) triggers.
-- **Dynamic Content**: Integration with Playwright via the `--dynamic` flag.
-- **Safety**: Uses `QualityLogger` to track successes and rejections, and enforces "polite" crawling with delays.
-- **Auto-Stopping**:
-  - **Domain Blacklisting**: Automatically blacklists a domain if it produces too many rejected pages (`domain_rejection_threshold`).
-  - **Global Rejection Stop**: Stops the entire crawl if a contiguous sequence of pages are rejected across the board (`consecutive_rejection_threshold`), preventing the crawler from getting stuck in a "bad neighborhood" of the web.
+- **Persistence**: Pages are saved to a SQL table with full-text search (FTS5) triggers and content deduplication via SHA256 hashing.
+- **Dynamic Content**: Auto-upgrades to Playwright rendering when SPA indicators or script-heavy patterns are detected.
+- **Safety**: Complies with `robots.txt` and enforces domain/consecutive rejection limits.
 
 ## Public API / Interfaces
 
-### `SimpleCrawler` Class
+### `AsyncCrawler` Class
 
 #### Methods:
 
-- **`__init__(base_url, max_depth=2, db_file="index.db", use_dynamic=False)`**: Initialize the crawler.
-- **`crawl(url, depth=0)`**: Recursively crawl the given URL.
-- **`is_valid_url(url)`**: Checks if a URL should be crawled based on domain, extension, and visited status. Includes checks against the blacklist.
-- **`save_page(url, title, content, html, quality_score, quality_tier)`**: Persists page data to the DB and updates the FTS index.
-- **`blacklist_domain(domain)`**: Adds a domain to the blacklist in the database.
+- **`__init__(base_url, max_depth=None, db_file=None, use_dynamic=False)`**: Initialize the async crawler and connect to Redis for the Bloom Filter.
+- **`run(seed_urls)`**: Entry point for starting the asynchronous crawl loop.
+- **`process_url(url, depth)`**: Asynchronously fetches, evaluates, and processes a single URL.
+- **`is_valid_url(url)`**: Checks if a URL should be crawled based on the Bloom Filter, domain blacklist, and `robots.txt`.
+- **`fetch_page(url)`**: Strategy-based fetch that uses `aiohttp` for static or Playwright for dynamic content.
+- **`save_page(...)`**: Persists page data and updates RSS feed discovery.
 
 ### CLI Commands:
 
@@ -45,12 +45,13 @@ uv run provoke-crawler <url_or_file> [max_depth] [--dynamic]
 
 ## Dependencies
 
-- `requests`: HTTP client.
+- `aiohttp`: Async HTTP client.
 - `BeautifulSoup`: HTML parsing.
 - `sqlite3`: Data storage.
+- `redis`: Distributed Bloom Filter signaling/persistence.
 - `playwright`: (Optional) Dynamic rendering.
-- `provoke.config`: Central configuration and quality evaluation logic.
-- `provoke.utils.logger`: Stats tracking.
+- `provoke.config`: Central configuration.
+- `provoke.utils.bloom`: RedisBloom abstraction.
 
 ## Examples
 

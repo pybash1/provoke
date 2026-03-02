@@ -117,6 +117,15 @@ class _BaseConfig:
     CRAWLER_DEFAULT_MAX_DEPTH: int = 2
     CRAWLER_POLITE_DELAY: float = 0.1  # Delay between crawled URLs (seconds)
     CRAWLER_CONCURRENCY: int = 50  # Number of concurrent crawler tasks
+    CRAWLER_SAVE_INTERVAL: int = 10  # Save visited urls to bloom filter every X urls
+
+    # ── Redis / Bloom Filter ──────────────────────────────────────────────
+    REDIS_HOST: str = _env("REDIS_HOST", "localhost")
+    REDIS_PORT: int = _env_int("REDIS_PORT", 6379)
+    REDIS_DB: int = _env_int("REDIS_DB", 0)
+    BLOOM_FILTER_NAME: str = _env("BLOOM_FILTER_NAME", "provoke:visited")
+    BLOOM_FILTER_CAPACITY: int = _env_int("BLOOM_FILTER_CAPACITY", 1000000)
+    BLOOM_FILTER_ERROR_RATE: float = _env_float("BLOOM_FILTER_ERROR_RATE", 0.01)
 
     # ── Dynamic Content Detection ─────────────────────────────────────────
     # Domains known to require JavaScript (SPAs, heavy dynamic content)
@@ -963,7 +972,16 @@ def calculate_corporate_score(url: str, html: str, text: str) -> int:
 def calculate_readability(text: str) -> float:
     """Calculates Flesch Reading Ease score."""
     try:
-        return textstat.flesch_reading_ease(text)
+        # textstat can be tricky with its module/class structure in different versions
+        method = getattr(textstat, "flesch_reading_ease", None)
+        if not method:
+            from textstat import textstat as ts_module
+
+            method = getattr(ts_module, "flesch_reading_ease", None)
+
+        if method:
+            return method(text)
+        return 0.0
     except:
         return 0.0
 
