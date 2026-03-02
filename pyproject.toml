@@ -14,7 +14,7 @@ dependencies = [
     "requests>=2.32.5",
     "textstat>=0.7.12",
     "aiohttp>=3.9.0",
-    "redis>=5.0.0",
+    "redis>=7.0.1",
 ]
 
 [project.optional-dependencies]
@@ -25,6 +25,7 @@ dev = [
 [project.scripts]
 provoke-web = "provoke.web.app:main"
 provoke-crawler = "provoke.crawler:main"
+provoke-indexer-worker = "provoke.indexer_worker:main"
 provoke-trainer = "provoke.ml.trainer:main"
 
 [tool.setuptools]

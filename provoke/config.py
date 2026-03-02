@@ -113,6 +113,13 @@ class _BaseConfig:
     DYNAMIC_PAGE_TIMEOUT: int = 30000  # Playwright page.goto timeout (ms)
     DYNAMIC_RENDER_WAIT: float = 1.0  # Extra wait for SPA rendering (seconds)
 
+    # ── Redis (Message Queue) ─────────────────────────────────────────────
+    REDIS_HOST: str = _env("REDIS_HOST", "localhost")
+    REDIS_PORT: int = _env_int("REDIS_PORT", 6379)
+    REDIS_STREAM: str = "inked:crawl_results"
+    REDIS_GROUP: str = "inked:indexer_group"
+    REDIS_CONSUMER: str = "inked:indexer_worker_1"
+
     # ── Crawler ───────────────────────────────────────────────────────────
     CRAWLER_DEFAULT_MAX_DEPTH: int = 2
     CRAWLER_POLITE_DELAY: float = 0.1  # Delay between crawled URLs (seconds)

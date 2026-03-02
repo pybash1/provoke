@@ -18,6 +18,9 @@ This module serves two primary purposes:
 - **`ENV`**: toggles between `development` (debug mode) and `production` (optimized).
 - **`DATABASE_PATH`**: Location of the SQLite database (`index.db`).
 - **`SERVER_PORT`**: Port for the Flask web interface (default: 4000).
+- **`REDIS_HOST`**: Hostname for the Redis message queue (default: localhost).
+- **`REDIS_PORT`**: Port for Redis (default: 6379).
+- **`REDIS_STREAM`**: Name of the Redis stream for crawl tasks (`inked:crawl_results`).
 
 ### Redis & Bloom Filter
 
