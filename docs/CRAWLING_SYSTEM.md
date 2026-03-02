@@ -17,12 +17,13 @@ The crawling process is now decoupled into two main components:
 
 ### Key Features
 
-- **Asynchronous Traversal**: Utilizes `asyncio` and `aiohttp` for high-concurrency crawling.
+- **Asynchronous Crawling**: Utilizes `asyncio`, `aiohttp`, and asynchronous Playwright for high-concurrency crawling.
 - **Smart Tree Skipping**: Automatically abandons unproductive URL branches (subdirectories) if they consistently yield low-quality content.
+- **Distributed Bloom Filter**: Uses a persistent Redis-backed Bloom Filter to track visited URLs across sessions and multiple crawler instances.
+- **Message Queueing**: Uses Redis Streams to reliably pass crawl results from the crawler to the indexer worker.
 - **Deduplication**: Uses first-512-byte SHA256 content hashing to avoid indexing duplicate content across different URLs.
 - **Dynamic Content**: Auto-upgrades to Playwright (headless browser) if a page is detected as an SPA or requires JavaScript rendering.
-- **Message Queueing**: Uses Redis Streams to reliably pass crawl results to the indexer.
-- **Auto-Stopping**: Enforces global and per-domain rejection thresholds to prevent "bottom-less" crawls of low-quality networks.
+- **Safety**: Complies with `robots.txt` and enforces domain/consecutive rejection limits.
 
 ## Public API / Interfaces
 
@@ -30,8 +31,11 @@ The crawling process is now decoupled into two main components:
 
 #### Methods:
 
-- **`__init__(base_url, max_depth, use_dynamic=False)`**: Initialize the async crawler.
-- **`run(seed_urls)`**: Start the asynchronous crawl process.
+- **`__init__(base_url, max_depth=None, use_dynamic=False)`**: Initialize the async crawler and connect to Redis.
+- **`run(seed_urls)`**: Entry point for starting the asynchronous crawl loop.
+- **`process_url(url, depth)`**: Asynchronously fetches, evaluates, and processes a single URL.
+- **`is_valid_url(url)`**: Checks if a URL should be crawled based on the Bloom Filter, domain blacklist, and `robots.txt`.
+- **`fetch_page(url)`**: Strategy-based fetch that uses `aiohttp` for static or Playwright for dynamic content.
 - **`enqueue_indexing_task(data)`**: Pushes accepted page metadata to Redis for the worker.
 
 ### `IndexerWorker` Class (`provoke/indexer_worker.py`)
@@ -62,10 +66,33 @@ docker-compose up -d redis
 ## Dependencies
 
 - `aiohttp`: Async HTTP client.
-- `redis`: Async Redis client.
+- `aiohttp`: Async HTTP client.
+- `redis`: Async Redis client for Streams and Bloom filtering.
 - `BeautifulSoup`: HTML parsing.
 - `sqlite3`: Data storage (via Indexer Worker).
 - `playwright`: Dynamic rendering.
+- `provoke.config`: Central configuration.
+- `provoke.utils.bloom`: RedisBloom abstraction.
+
+## Examples
+
+Crawl a specific blog:
+
+```bash
+uv run python -m provoke.crawler https://example.com/blog 2
+```
+
+Crawl from a list of seeds with dynamic rendering:
+
+```bash
+uv run python -m provoke.crawler seeds.txt 1 --dynamic
+```
+
+Start the Indexer Worker:
+
+```bash
+uv run python -m provoke.indexer_worker
+```
 
 ## Related
 

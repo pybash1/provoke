@@ -1,12 +1,13 @@
 version: '3.8'
 
 services:
-  # Message Queue for decoupled Crawling & Indexing
+  # Message Queue & Distributed Bloom Filter
   redis:
-    image: redis:7-alpine
-    container_name: provoke-redis
+    image: redis/redis-stack-server:latest
+    container_name: provoke_redis
     ports:
       - "6379:6379"
+      - "8001:8001" # RedisInsight UI
     volumes:
       - redis_data:/data
     restart: always
@@ -14,7 +15,7 @@ services:
   # Optional: Indexer Worker as a service
   # indexer:
   #   build: .
-  #   container_name: provoke-indexer
+  #   container_name: provoke_indexer
   #   environment:
   #     - REDIS_HOST=redis
   #     - PROVOKE_ENV=development

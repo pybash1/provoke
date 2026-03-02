@@ -22,6 +22,16 @@ This module serves two primary purposes:
 - **`REDIS_PORT`**: Port for Redis (default: 6379).
 - **`REDIS_STREAM`**: Name of the Redis stream for crawl tasks (`inked:crawl_results`).
 
+### Redis & Bloom Filter
+
+Settings for distributed URL tracking:
+
+- **`REDIS_HOST`** (`localhost`): Hostname of the Redis server.
+- **`REDIS_PORT`** (`6379`): Port of the Redis server.
+- **`BLOOM_FILTER_NAME`** (`provoke:visited`): The key used in Redis for the bloom filter.
+- **`BLOOM_FILTER_CAPACITY`** (1,000,000): Expected maximum number of unique URLs.
+- **`BLOOM_FILTER_ERROR_RATE`** (0.01): Allowable false positive rate (1%).
+
 ### Thresholds (`THRESHOLDS`)
 
 Critical numeric limits that determine what gets indexed:

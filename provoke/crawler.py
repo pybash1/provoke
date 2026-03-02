@@ -17,6 +17,7 @@ import signal
 import hashlib
 import redis.asyncio as aredis
 from provoke.utils.robots import RobotsParser
+from provoke.utils.bloom import RedisBloomFilter
 
 
 @dataclass
@@ -103,7 +104,7 @@ class AsyncCrawler:
         self.db_file = db_file or config.DATABASE_PATH
         self.use_dynamic = use_dynamic
         self.init_db()
-        self.visited = set()
+        self.visited = RedisBloomFilter()
         self.playwright = None
         self.browser = None
         self.session = None  # aiohttp session
@@ -485,7 +486,9 @@ class AsyncCrawler:
         # 2. Content check (if available)
         if html:
             # Check for known SPA indicators
-            if any(indicator in html for indicator in config.DYNAMIC_INDICATORS):
+            if any(
+                indicator in (html or "") for indicator in config.DYNAMIC_INDICATORS
+            ):
                 return True
 
             # Threshold-based detection from auto-switch feature
